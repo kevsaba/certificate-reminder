@@ -77,8 +77,9 @@ That's it! The app can now send emails through Outlook.
 1. **Launch the app** from Applications
 2. **Upload your Excel file** with certificate data
 3. **(Optional) Upload Word templates** for custom emails
-4. **Click "Send Email Reminders"** to send notifications
-5. **Click "Close App"** when done
+4. **Enable or disable categories** for this send run
+5. **Click "Send Email Reminders"** to send notifications
+6. **Click "Close App"** when done
 
 ---
 

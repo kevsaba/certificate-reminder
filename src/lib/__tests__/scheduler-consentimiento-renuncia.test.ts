@@ -78,4 +78,40 @@ describe('CONSENTIMIENTO/RENUNCIA either-or logic', () => {
       'FICHA - 2025',
     ]);
   });
+
+  test('category filter can send only RENUNCIA even when CONSENTIMIENTO is also expired', async () => {
+    const result = await checkExpirations([
+      createEntry('CASE9', 'CONSENTIMIENTO - 2025', '2026-02-10'),
+      createEntry('CASE9', 'RENUNCIA - 2025', '2026-01-10'),
+      createEntry('CASE9', 'FICHA - 2025', '2026-01-10'),
+    ], templates, {
+      channels: { email: false },
+      enabledCategories: ['RENUNCIA'],
+    });
+
+    expect(result.results.filter(entry => entry.status === 'sent').map(entry => entry.category)).toEqual([
+      'RENUNCIA - 2025',
+    ]);
+    expect(result.results.filter(entry => entry.status === 'skipped').map(entry => entry.category).sort()).toEqual([
+      'CONSENTIMIENTO - 2025',
+      'FICHA - 2025',
+    ]);
+  });
+
+  test('category filter skips disabled independent categories', async () => {
+    const result = await checkExpirations([
+      createEntry('CASE10', 'FICHA - 2025', '2026-01-10'),
+      createEntry('CASE10', 'APTO - 2025', '2026-01-10'),
+    ], templates, {
+      channels: { email: false },
+      enabledCategories: ['APTO'],
+    });
+
+    expect(result.results.filter(entry => entry.status === 'sent').map(entry => entry.category)).toEqual([
+      'APTO - 2025',
+    ]);
+    expect(result.results.filter(entry => entry.status === 'skipped').map(entry => entry.category)).toEqual([
+      'FICHA - 2025',
+    ]);
+  });
 });

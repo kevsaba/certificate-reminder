@@ -46,6 +46,13 @@ export interface CheckResult {
   }>;
 }
 
+export interface CheckOptions {
+  channels?: {
+    email?: boolean;
+  };
+  enabledCategories?: string[];
+}
+
 export interface AppData {
   entries: CertificateEntry[];
   templates: Template[];

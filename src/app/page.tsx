@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { CertificateEntry, Template } from '@/types';
 import DataTable from '@/components/DataTable';
 import WelcomeModal from '@/components/WelcomeModal';
 import PermissionModal from '@/components/PermissionModal';
 import PermissionIndicator from '@/components/PermissionIndicator';
+import { extractBaseCategory } from '@/lib/expiration';
 
 interface NotificationResult {
   emailsSent?: number;
@@ -22,6 +23,11 @@ export default function Home() {
   const [uploading, setUploading] = useState(false);
   const [checking, setChecking] = useState(false);
   const [lastResult, setLastResult] = useState<NotificationResult | null>(null);
+  const [enabledCategories, setEnabledCategories] = useState<string[]>([]);
+
+  const categoryOptions = useMemo(() => {
+    return Array.from(new Set(entries.map(entry => extractBaseCategory(entry.category).toUpperCase()))).sort();
+  }, [entries]);
 
   // Permission UX state
   const [showWelcome, setShowWelcome] = useState(() => {
@@ -68,8 +74,14 @@ export default function Home() {
         return;
       }
 
-      setEntries(data.entries);
+      const uploadedEntries = data.entries as CertificateEntry[];
+      const uploadedCategories = Array.from(
+        new Set(uploadedEntries.map(entry => extractBaseCategory(entry.category).toUpperCase()))
+      ).sort();
+
+      setEntries(uploadedEntries);
       setFilename(file.name);
+      setEnabledCategories(uploadedCategories);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to upload');
     } finally {
@@ -134,6 +146,11 @@ export default function Home() {
       return;
     }
 
+    if (enabledCategories.length === 0) {
+      alert('Please enable at least one category before sending emails');
+      return;
+    }
+
     // Prevent double-click/double-invocation (React 19 dev mode issue)
     if (checking) {
       return;
@@ -150,7 +167,10 @@ export default function Home() {
       const response = await fetch('/api/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channels: { email: true } }),
+        body: JSON.stringify({
+          channels: { email: true },
+          enabledCategories,
+        }),
       });
       const data = await response.json();
 
@@ -179,6 +199,14 @@ export default function Home() {
     } finally {
       setChecking(false);
     }
+  };
+
+  const toggleCategory = (category: string) => {
+    setEnabledCategories(current =>
+      current.includes(category)
+        ? current.filter(enabled => enabled !== category)
+        : [...current, category].sort()
+    );
   };
 
   const shutdownApp = async () => {
@@ -354,19 +382,63 @@ export default function Home() {
                     Send Email Reminders
                   </h2>
                   <p className="text-sm text-gray-500 mt-1">
-                    Send email notifications for expired certificates
+                    Send email notifications for expired certificates in the enabled categories
                   </p>
+                </div>
+              </div>
+
+              <div className="mb-5 rounded border border-gray-200 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-900">Enabled Categories</h3>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Disabled categories are skipped for this run.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEnabledCategories(categoryOptions)}
+                      className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                    >
+                      Enable All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEnabledCategories([])}
+                      className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                    >
+                      Disable All
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                  {categoryOptions.map(category => (
+                    <label
+                      key={category}
+                      className="flex items-center gap-2 rounded border border-gray-200 px-3 py-2 text-sm text-gray-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={enabledCategories.includes(category)}
+                        onChange={() => toggleCategory(category)}
+                        className="h-4 w-4 rounded border-gray-300 text-green-600"
+                      />
+                      <span className="truncate">{category}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
 
               <div className="flex items-center justify-between">
                 <div className="text-sm text-gray-500">
-                  {entries.length} entries loaded
+                  {entries.length} entries loaded · {enabledCategories.length} categories enabled
                 </div>
 
                 <button
                   onClick={runCheck}
-                  disabled={checking}
+                  disabled={checking || enabledCategories.length === 0}
                   className="px-5 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {checking ? (

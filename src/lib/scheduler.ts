@@ -1,4 +1,4 @@
-import { CertificateEntry, CheckResult, ReminderPayload, Template } from '@/types';
+import { CertificateEntry, CheckOptions, CheckResult, ReminderPayload, Template } from '@/types';
 import { sendEmailNotifications } from './email';
 import { matchTemplate, fillTemplate, extractNameFromEmail } from './word';
 import { getExpirationStatus, calculateDaysUntil, extractBaseCategory } from './expiration';
@@ -6,13 +6,15 @@ import { getExpirationStatus, calculateDaysUntil, extractBaseCategory } from './
 export async function checkExpirations(
   entries: CertificateEntry[],
   templates: Template[],
-  options: {
-    channels?: {
-      email?: boolean;
-    };
-  } = {}
+  options: CheckOptions = {}
 ): Promise<CheckResult> {
   const channels = options.channels || { email: true };
+  const enabledCategories = options.enabledCategories
+    ? new Set(options.enabledCategories.map(category => category.trim().toUpperCase()))
+    : null;
+  const entriesForCheck = enabledCategories
+    ? entries.filter(entry => enabledCategories.has(extractBaseCategory(entry.category).toUpperCase()))
+    : entries;
 
   // ========================================================================
   // BUSINESS LOGIC: Only send emails for categories where ALL certificates are expired
@@ -32,7 +34,7 @@ export async function checkExpirations(
   // ========================================================================
 
   // Step 1: Check ALL entries for expiration
-  const allEntriesWithStatus = entries.map(entry => ({
+  const allEntriesWithStatus = entriesForCheck.map(entry => ({
     entry,
     expirationStatus: getExpirationStatus(entry),
     daysUntil: calculateDaysUntil(entry.expirationDate),
@@ -177,6 +179,22 @@ export async function checkExpirations(
     remindersSent: 0,
     results: [],
   };
+
+  if (enabledCategories) {
+    for (const entry of entries) {
+      const baseCategory = extractBaseCategory(entry.category).toUpperCase();
+
+      if (enabledCategories.has(baseCategory)) continue;
+
+      result.results.push({
+        email: entry.email,
+        category: entry.category,
+        expirationDate: entry.expirationDate.toISOString().split('T')[0],
+        daysRemaining: calculateDaysUntil(entry.expirationDate),
+        status: 'skipped',
+      });
+    }
+  }
 
   const remindersToSend: ReminderPayload[] = [];
 

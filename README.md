@@ -25,6 +25,7 @@ Certificate Reminder is a native macOS application that helps organizations trac
 - ✅ **Excel Parsing** - Upload Excel files with certificate data
 - ✅ **Word Template Support** - Use custom Word templates for formatted emails
 - ✅ **Automated Email Reminders** - Send reminders via Microsoft Outlook
+- ✅ **Ad-hoc Category Selection** - Enable or disable certificate categories before each send run
 - ✅ **Expiration Tracking** - Track days until expiration
 - ✅ **Permission Management** - Clear UX for macOS automation permissions
 - ✅ **Offline Operation** - No internet connection required

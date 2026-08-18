@@ -152,8 +152,24 @@ server = serve({
         }
 
         const templates = appData.templates || [];
+        let enabledCategories: string[] | undefined;
+
+        if (method === 'POST') {
+          try {
+            const body = await req.json();
+            if (Array.isArray(body.enabledCategories)) {
+              enabledCategories = body.enabledCategories.filter((category: unknown): category is string =>
+                typeof category === 'string'
+              );
+            }
+          } catch {
+            enabledCategories = undefined;
+          }
+        }
+
         const result = await checkExpirations(appData.entries, templates, {
           channels: { email: true },
+          enabledCategories,
         });
 
         return new Response(JSON.stringify({
