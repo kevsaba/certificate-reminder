@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CertificateReminder</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+    iframe {
+      width: 100vw;
+      height: 100vh;
+      border: none;
+      display: block;
+    }
+    #loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      z-index: 1000;
+      flex-direction: column;
+      color: white;
+    }
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid rgba(255,255,255,0.3);
+      border-top: 5px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Loading CertificateReminder...</p>
+  </div>
+  <iframe id="app-frame" sandbox="allow-same-origin allow-scripts allow-forms allow-modals allow-popups"></iframe>
+
+  <script>
+    const iframe = document.getElementById('app-frame');
+    const loading = document.getElementById('loading');
+
+    // Wait for server to be ready
+    async function waitForServer() {
+      const maxAttempts = 30;
+      let attempts = 0;
+
+      while (attempts < maxAttempts) {
+        try {
+          const response = await fetch('http://localhost:3030', {
+            mode: 'no-cors'
+          });
+          return true;
+        } catch (e) {
+          attempts++;
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      return false;
+    }
+
+    waitForServer().then(ready => {
+      if (ready) {
+        iframe.src = 'http://localhost:3030';
+        iframe.onload = () => {
+          loading.style.display = 'none';
+        };
+        setTimeout(() => {
+          loading.style.display = 'none';
+        }, 2000);
+      } else {
+        loading.innerHTML = '<p>Failed to connect to server. Please restart the app.</p>';
+      }
+    });
+  </script>
+</body>
+</html>
