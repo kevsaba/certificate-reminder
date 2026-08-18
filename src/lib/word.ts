@@ -7,8 +7,10 @@ export interface Template {
 
 export async function parseWordTemplates(buffer: Buffer): Promise<Template[]> {
   const result = await mammoth.convertToHtml({ buffer });
-  const html = result.value;
-  
+  return parseWordTemplateHtml(result.value);
+}
+
+export function parseWordTemplateHtml(html: string): Template[] {
   const knownTypes = ['FICHA', 'CONSENTIMIENTO', 'TELEFORMACION', 'APTO', 'EPIS', 'EPI', 'RENUNCIA', 'FORMACION'];
   const templates: Template[] = [];
   
@@ -37,21 +39,14 @@ export async function parseWordTemplates(buffer: Buffer): Promise<Template[]> {
     const end = i < starts.length - 1 ? starts[i + 1].index : html.length;
     const content = html.substring(start, end).trim();
     
-    if (content.length > 50) {
+    if (content.length > 0) {
       templates.push({
         type: starts[i].type,
         html: content,
       });
     }
   }
-  
-  if (templates.length === 0) {
-    templates.push({
-      type: 'DEFAULT',
-      html: html,
-    });
-  }
-  
+
   return templates;
 }
 

@@ -132,7 +132,8 @@ The app supports two Excel formats:
 ## Word Template Format
 
 If using custom Word templates:
-- Each page should start with a title (FICHA, CONSENTIMIENTO, RENUNCIA, or EPI)
+- Each page must start with its matching title: FICHA, CONSENTIMIENTO, TELEFORMACION, APTO, EPIS/EPI, or RENUNCIA
+- Expired certificates are skipped when their matching template page is missing
 - Use placeholders: `[NAME]` and `[DATE]`
 - Upload .docx or .doc files
 

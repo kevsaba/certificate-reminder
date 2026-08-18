@@ -3,7 +3,7 @@ import type { CertificateEntry, ReminderPayload, Template } from '@/types';
 import { checkExpirations } from '../scheduler';
 import { extractBaseCategory, getExpirationStatus } from '../expiration';
 import { buildOutlookEmailBody, extractEmailSubject, sendEmailNotification } from '../email';
-import { fillTemplate, matchTemplate } from '../word';
+import { fillTemplate, matchTemplate, parseWordTemplateHtml } from '../word';
 
 const testRecipient = process.env.CERT_REMINDER_TEST_EMAIL || 'recipient@example.test';
 
@@ -84,6 +84,32 @@ describe('missing Word template behavior', () => {
     expect(buildOutlookEmailBody(payload)).toContain('<strong>FICHA</strong>');
   });
 
+  test('every expired category is skipped when its matching Word template page is missing', async () => {
+    const categories = [
+      'FICHA - 2025',
+      'CONSENTIMIENTO - 2025',
+      'RENUNCIA - 2025',
+      'APTO - 2025',
+      'EPIS - 2025',
+      'EPI - 2025',
+      'FORMACION - 2025',
+      'TELEFORMACION - 2025',
+    ];
+    const entries: CertificateEntry[] = categories.map((category, index) => ({
+      id: `missing-${index}`,
+      dni: `MISSING_${index}`,
+      category,
+      expirationDate: new Date('2026-01-10'),
+      email: testRecipient,
+    }));
+
+    const result = await checkExpirations(entries, [], { channels: { email: false } });
+
+    expect(result.remindersSent).toBe(0);
+    expect(result.results).toHaveLength(categories.length);
+    expect(result.results.every((entry) => entry.status === 'skipped')).toBe(true);
+  });
+
   test('scheduler skips expired FORMACION and TELEFORMACION when TELEFORMACION template is missing', async () => {
     const entries: CertificateEntry[] = [
       {
@@ -113,6 +139,30 @@ describe('missing Word template behavior', () => {
 
   test('DEFAULT template is not used as a fallback for unknown documentation types', () => {
     expect(matchTemplate([{ type: 'DEFAULT', html: '<p>Fallback</p>' }], 'UNKNOWN')).toBeNull();
+  });
+
+  test('parser returns no templates instead of creating DEFAULT when no known page titles exist', () => {
+    const templates = parseWordTemplateHtml('<p><strong>UNKNOWN</strong></p><p>Unknown body.</p>');
+
+    expect(templates).toEqual([]);
+  });
+
+  test('missing middle pages do not break parsing or matching later template pages', () => {
+    const templates = parseWordTemplateHtml([
+      '<p><strong>FICHA</strong></p>',
+      '<p>Ficha body.</p>',
+      '<p><strong>APTO</strong></p>',
+      '<p>Apto body.</p>',
+      '<p><strong>RENUNCIA</strong></p>',
+      '<p>Renuncia body.</p>',
+    ].join(''));
+
+    expect(templates.map((template) => template.type)).toEqual(['FICHA', 'APTO', 'RENUNCIA']);
+    expect(matchTemplate(templates, 'FICHA')).toEqual(expect.objectContaining({ type: 'FICHA' }));
+    expect(matchTemplate(templates, 'CONSENTIMIENTO')).toBeNull();
+    expect(matchTemplate(templates, 'TELEFORMACION')).toBeNull();
+    expect(matchTemplate(templates, 'APTO')).toEqual(expect.objectContaining({ type: 'APTO' }));
+    expect(matchTemplate(templates, 'RENUNCIA')).toEqual(expect.objectContaining({ type: 'RENUNCIA' }));
   });
 
   test('email sender refuses to send when no template HTML is available', async () => {

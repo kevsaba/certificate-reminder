@@ -324,7 +324,7 @@ export default function Home() {
               
               <div className="mt-4 p-3 bg-gray-50 rounded text-xs text-gray-600">
                 <p className="font-medium mb-1">Template requirements:</p>
-                <p>Each page should start with a title (FICHA, CONSENTIMIENTO, RENUNCIA, or EPI)</p>
+                <p>Each page must start with its matching title. Missing pages are skipped.</p>
                 <p className="mt-1">Use placeholders: [NAME] and [DATE]</p>
               </div>
               

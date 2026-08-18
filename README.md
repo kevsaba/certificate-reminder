@@ -488,6 +488,8 @@ const knownTypes = [
 ];
 ```
 
+Each Word template page must start with its matching title. If an expired certificate has no matching template page, the app skips that email instead of sending a fallback message.
+
 ---
 
 ## Troubleshooting

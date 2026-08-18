@@ -47,7 +47,15 @@ function createPayload(category: string): ReminderPayload {
   };
 }
 
-for (const category of ['FORMACION - 2025', 'TELEFORMACION - 2025', 'FICHA - 2025']) {
+for (const category of [
+  'FICHA - 2025',
+  'CONSENTIMIENTO - 2025',
+  'RENUNCIA - 2025',
+  'APTO - 2025',
+  'EPIS - 2025',
+  'FORMACION - 2025',
+  'TELEFORMACION - 2025',
+]) {
   const payload = createPayload(category);
   const wouldSend = Boolean(payload.html);
 
