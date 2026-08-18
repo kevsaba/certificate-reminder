@@ -321,25 +321,20 @@ server = serve({
     try {
       // When bundled, static files are in Contents/Resources/app/static/
       // In development, they're in the out directory
-      let staticPath: string;
-      try {
-        // Try bundled path first
-        const testPath = import.meta.dir + '/../static/index.html';
-        Bun.file(testPath);
-        staticPath = import.meta.dir + '/../static';
-      } catch {
-        // Fall back to development path
-        staticPath = import.meta.dir + '/../../out';
-      }
+      const bundledStaticPath = join(import.meta.dir, '../static');
+      const localStaticPath = join(import.meta.dir, '../../out');
+      const staticPath = existsSync(join(bundledStaticPath, 'index.html'))
+        ? bundledStaticPath
+        : localStaticPath;
 
-      let filePath = staticPath + url.pathname;
+      let filePath = join(staticPath, url.pathname);
 
       // Try index.html for directory requests
       if (filePath.endsWith('/') || url.pathname === '/') {
-        filePath = staticPath + '/index.html';
+        filePath = join(staticPath, 'index.html');
       } else if (!filePath.includes('.')) {
         // If no extension, try index.html
-        filePath = filePath + '/index.html';
+        filePath = join(filePath, 'index.html');
       }
 
       const file = Bun.file(filePath);
