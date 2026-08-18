@@ -116,19 +116,19 @@ echo ""
 # Step 8: Create PKG installer
 echo "Step 8: Creating PKG installer..."
 PKG_SCRIPTS_DIR="$(mktemp -d)"
-PKG_STAGE_DIR="$(mktemp -d)"
+PKG_APP_STAGE_DIR="$(mktemp -d)"
 cp pkg-postinstall.sh "$PKG_SCRIPTS_DIR/postinstall"
 chmod +x "$PKG_SCRIPTS_DIR/postinstall"
-ditto --norsrc --noextattr "$DIST_DIR/$APP_NAME.app" "$PKG_STAGE_DIR/$APP_NAME.app"
-COPYFILE_DISABLE=1 pkgbuild \
-    --component "$PKG_STAGE_DIR/$APP_NAME.app" \
-    --install-location "/Applications" \
+ditto --norsrc --noextattr "$DIST_DIR/$APP_NAME.app" "$PKG_APP_STAGE_DIR/$APP_NAME.app"
+COPYFILE_DISABLE=1 tar -czf "$PKG_SCRIPTS_DIR/$APP_NAME.app.tar.gz" -C "$PKG_APP_STAGE_DIR" "$APP_NAME.app"
+pkgbuild \
+    --nopayload \
     --identifier "com.certificates.reminder" \
     --version "$VERSION" \
     --scripts "$PKG_SCRIPTS_DIR" \
     "$PKG_PATH"
 rm -rf "$PKG_SCRIPTS_DIR"
-rm -rf "$PKG_STAGE_DIR"
+rm -rf "$PKG_APP_STAGE_DIR"
 xattr -cr "$PKG_PATH"
 echo "✅ PKG created: $PKG_PATH"
 echo ""
