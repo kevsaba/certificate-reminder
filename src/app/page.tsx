@@ -452,14 +452,14 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={() => setEnabledCategories(categoryOptions)}
-                      className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                      className="px-3 py-1.5 text-xs border border-gray-300 rounded bg-white text-black hover:bg-gray-50"
                     >
                       Enable All
                     </button>
                     <button
                       type="button"
                       onClick={() => setEnabledCategories([])}
-                      className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                      className="px-3 py-1.5 text-xs border border-gray-300 rounded bg-white text-black hover:bg-gray-50"
                     >
                       Disable All
                     </button>
@@ -470,7 +470,7 @@ export default function Home() {
                   {categoryOptions.map(category => (
                     <label
                       key={category}
-                      className="flex items-center gap-2 rounded border border-gray-200 px-3 py-2 text-sm text-gray-700"
+                      className="flex items-center gap-2 rounded border border-gray-200 px-3 py-2 text-sm text-black bg-white"
                     >
                       <input
                         type="checkbox"
@@ -495,12 +495,12 @@ export default function Home() {
                       }
                     }}
                     placeholder="New category"
-                    className="min-w-0 flex-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                    className="min-w-0 flex-1 rounded border border-gray-300 bg-white px-3 py-2 text-sm text-black placeholder:text-gray-500"
                   />
                   <button
                     type="button"
                     onClick={addCustomCategory}
-                    className="px-3 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                    className="px-3 py-2 text-sm border border-gray-300 rounded bg-white text-black hover:bg-gray-50"
                   >
                     Add Category
                   </button>
