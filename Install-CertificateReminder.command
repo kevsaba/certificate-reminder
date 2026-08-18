@@ -33,7 +33,9 @@ if [ ! -f "$DMG_PATH" ]; then
     echo ""
     echo "Current location: $SCRIPT_DIR"
     echo ""
-    read -p "Press Enter to exit..."
+    if [ -t 0 ]; then
+        read -p "Press Enter to exit..."
+    fi
     exit 1
 fi
 
@@ -69,7 +71,9 @@ if [ -z "$MOUNT_PATH" ] || [ ! -d "$MOUNT_PATH/$APP_NAME" ]; then
     echo ""
     echo "$ATTACH_OUTPUT"
     echo ""
-    read -p "Press Enter to exit..."
+    if [ -t 0 ]; then
+        read -p "Press Enter to exit..."
+    fi
     exit 1
 fi
 
@@ -113,4 +117,6 @@ echo "If the browser did not open, go to: http://localhost:3030"
 echo ""
 echo "After installing, you can delete this folder."
 echo ""
-read -p "Press Enter to close this window..."
+if [ -t 0 ]; then
+    read -p "Press Enter to close this window..."
+fi

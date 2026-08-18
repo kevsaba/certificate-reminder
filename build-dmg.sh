@@ -7,6 +7,7 @@ set -e
 APP_NAME="CertificateReminder"
 VERSION="9.0.0"
 DMG_NAME="${APP_NAME}-${VERSION}-macOS.dmg"
+PKG_NAME="${APP_NAME}-${VERSION}-macOS.pkg"
 
 echo "🔨 Building $APP_NAME v$VERSION..."
 echo ""
@@ -95,7 +96,9 @@ echo ""
 # Step 7: Create DMG
 echo "Step 7: Creating DMG..."
 DMG_PATH="artifacts/$DMG_NAME"
+PKG_PATH="artifacts/$PKG_NAME"
 rm -f "$DMG_PATH"
+rm -f "$PKG_PATH"
 mkdir -p artifacts
 
 # Create temporary DMG
@@ -110,8 +113,28 @@ xattr -cr "$DMG_PATH"
 echo "✅ DMG created: $DMG_PATH"
 echo ""
 
-# Step 8: Copy installer wrapper script to artifacts
-echo "Step 8: Adding installer wrapper script..."
+# Step 8: Create PKG installer
+echo "Step 8: Creating PKG installer..."
+PKG_SCRIPTS_DIR="$(mktemp -d)"
+PKG_STAGE_DIR="$(mktemp -d)"
+cp pkg-postinstall.sh "$PKG_SCRIPTS_DIR/postinstall"
+chmod +x "$PKG_SCRIPTS_DIR/postinstall"
+ditto --norsrc --noextattr "$DIST_DIR/$APP_NAME.app" "$PKG_STAGE_DIR/$APP_NAME.app"
+COPYFILE_DISABLE=1 pkgbuild \
+    --component "$PKG_STAGE_DIR/$APP_NAME.app" \
+    --install-location "/Applications" \
+    --identifier "com.certificates.reminder" \
+    --version "$VERSION" \
+    --scripts "$PKG_SCRIPTS_DIR" \
+    "$PKG_PATH"
+rm -rf "$PKG_SCRIPTS_DIR"
+rm -rf "$PKG_STAGE_DIR"
+xattr -cr "$PKG_PATH"
+echo "✅ PKG created: $PKG_PATH"
+echo ""
+
+# Step 9: Copy installer wrapper script to artifacts
+echo "Step 9: Adding installer wrapper script..."
 if [ -f "Install-CertificateReminder.command" ]; then
     cp Install-CertificateReminder.command artifacts/
     chmod +x artifacts/Install-CertificateReminder.command
@@ -119,18 +142,53 @@ if [ -f "Install-CertificateReminder.command" ]; then
 else
     echo "⚠️  Warning: Install-CertificateReminder.command not found"
 fi
+if [ -f "installer-app-launcher.sh" ]; then
+    INSTALLER_APP="artifacts/Install CertificateReminder.app"
+    rm -rf "$INSTALLER_APP"
+    mkdir -p "$INSTALLER_APP/Contents/MacOS" "$INSTALLER_APP/Contents/Resources"
+    cp installer-app-launcher.sh "$INSTALLER_APP/Contents/MacOS/install-certificate-reminder"
+    chmod +x "$INSTALLER_APP/Contents/MacOS/install-certificate-reminder"
+    cat > "$INSTALLER_APP/Contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>install-certificate-reminder</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.certificates.reminder.installer</string>
+    <key>CFBundleName</key>
+    <string>Install CertificateReminder</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>9.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>9.0.0</string>
+</dict>
+</plist>
+PLIST
+    xattr -cr "$INSTALLER_APP"
+    echo "✅ Installer app created in artifacts/"
+else
+    echo "⚠️  Warning: installer-app-launcher.sh not found"
+fi
 echo ""
 
 echo "🎉 Build complete!"
 echo ""
 echo "Output files:"
 echo "  - DMG: $DMG_PATH"
+echo "  - PKG: $PKG_PATH"
+echo "  - Installer app: artifacts/Install CertificateReminder.app"
 echo "  - Installer: artifacts/Install-CertificateReminder.command"
 echo "  - Distribution: $DIST_DIR"
 echo ""
 echo "To distribute:"
-echo "  1. Send BOTH files to users:"
+echo "  1. Send these files to users:"
+echo "     - CertificateReminder-9.0.0-macOS.pkg"
 echo "     - CertificateReminder-9.0.0-macOS.dmg"
+echo "     - Install CertificateReminder.app"
 echo "     - Install-CertificateReminder.command"
-echo "  2. Tell users to run Install-CertificateReminder.command"
-echo "  3. The script will install the app, launch it, and open localhost:3030"
+echo "  2. Tell users to double-click CertificateReminder-9.0.0-macOS.pkg"
+echo "  3. macOS Installer will install CertificateReminder and open localhost:3030"

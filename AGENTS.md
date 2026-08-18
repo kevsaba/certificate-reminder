@@ -19,7 +19,9 @@ The repo must allow a colleague with access to GitHub to reproduce an installabl
 
 The expected colleague-facing deliverable shape is:
 
+- `CertificateReminder-<version>-macOS.pkg`
 - `CertificateReminder-<version>-macOS.dmg`
+- `Install CertificateReminder.app`
 - `Install-CertificateReminder.command`
 - `INSTALLATION-INSTRUCTIONS.txt`
 - `README-FOR-YOU.md`
@@ -51,7 +53,9 @@ For local manual app testing, use `bun run dev`. This builds the static UI and s
 
 `./build-dmg.sh` is the main release packaging script. It should do the hard work of producing:
 
+- `artifacts/CertificateReminder-<version>-macOS.pkg`
 - `artifacts/CertificateReminder-<version>-macOS.dmg`
+- `artifacts/Install CertificateReminder.app`
 - `artifacts/Install-CertificateReminder.command`
 - `CertificateReminder-Distribution/`
 
@@ -100,6 +104,14 @@ The Desktop handoff folder should mirror the v8 folder format. For v9, use:
 ```
 
 The DMG and installer should come from the current branch build artifacts. The human-facing instruction files can be based on the v8 handoff docs, but must be updated to the current version and filenames.
+
+For v9.0.0, prefer the standard macOS PKG installer for non-technical users:
+
+```text
+CertificateReminder-9.0.0-macOS.pkg
+```
+
+The previous DMG plus `.command` flow is retained as a fallback, but `.command` files can be blocked by user shell startup prompts such as oh-my-zsh update prompts. Do not make non-technical users run Terminal commands for the normal install path.
 
 If the build script skips `examples/`, that is expected when private examples are intentionally absent from the public repo.
 
