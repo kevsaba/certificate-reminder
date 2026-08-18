@@ -47,6 +47,8 @@ bun test src/lib/__tests__/scheduler-consentimiento-renuncia.test.ts
 ./build-dmg.sh
 ```
 
+For local manual app testing, use `bun run dev`. This builds the static UI and starts the Bun app server on `localhost:3030`, which is the server that owns `/api/upload`, `/api/check`, and Outlook integration. `bun run dev:ui` starts only the Next.js UI server and is not enough for upload/email testing.
+
 `./build-dmg.sh` is the main release packaging script. It should do the hard work of producing:
 
 - `artifacts/CertificateReminder-<version>-macOS.dmg`

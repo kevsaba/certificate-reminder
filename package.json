@@ -3,7 +3,8 @@
   "version": "9.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "bun run build && bun src/bun/index.ts",
+    "dev:ui": "next dev",
     "build": "next build",
     "build:ui": "next build",
     "build:dmg": "./build-dmg.sh",

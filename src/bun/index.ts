@@ -75,7 +75,16 @@ server = serve({
     // Handle file upload
     if (url.pathname === '/api/upload' && method === 'POST') {
       try {
-        const formData = await req.formData();
+        let formData: FormData;
+        try {
+          formData = await req.formData();
+        } catch {
+          return new Response(JSON.stringify({ error: 'Upload must be sent as multipart form data' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
         const file = formData.get('file') as File | null;
         const type = formData.get('type') as string | null;
 
