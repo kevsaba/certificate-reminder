@@ -1,577 +1,275 @@
 # Certificate Reminder
 
-A macOS desktop application that monitors certificate expirations and sends automated email reminders via Microsoft Outlook.
+Certificate Reminder is a macOS desktop app for tracking certificate expirations and sending reminder emails through Microsoft Outlook.
 
-## Table of Contents
+The app runs locally on the user's Mac at `http://localhost:3030`. Users upload an Excel file with certificate data and a Word document with email templates. The app finds expired certificates, matches them to the correct Word template page, and sends formatted emails through Outlook using AppleScript.
 
-- [Overview](#overview)
-- [Tech Stack](#tech-stack)
-- [Architecture](#architecture)
-- [How It Works](#how-it-works)
-- [Email Sending via Outlook](#email-sending-via-outlook)
-- [Development](#development)
-- [Building a DMG](#building-a-dmg)
-- [Project Structure](#project-structure)
-- [Configuration](#configuration)
+## Current Release
 
----
+- Current version: `9.0.0`
+- Main branch: `main`
+- Release branch pattern: `release/<version>`, for example `release/9.0.0`
+- Public repo: `https://github.com/kevsaba/certificate-reminder`
+- Primary install artifact for non-technical users: `CertificateReminder-<version>-macOS.pkg`
 
-## Overview
+## What The App Does
 
-Certificate Reminder is a native macOS application that helps organizations track certificate expirations and send automated reminders to employees. The application is completely offline - all data stays on the user's machine.
+- Parses Excel files containing employee certificate rows.
+- Parses Word `.docx` templates where each page starts with a category title.
+- Detects expired certificates.
+- Sends one reminder per employee/category group.
+- Sends emails through the installed Microsoft Outlook desktop app.
+- Lets the user enable or disable categories before each send run.
+- Lets the user add custom categories from the UI.
+- Stores local app data under `~/Library/Application Support/CertificateReminder/data/app-data.json`.
 
-### Key Features
+The app does not use a backend service or remote database. Uploaded certificate data stays on the Mac where the app is running.
 
-- ✅ **Excel Parsing** - Upload Excel files with certificate data
-- ✅ **Word Template Support** - Use custom Word templates for formatted emails
-- ✅ **Automated Email Reminders** - Send reminders via Microsoft Outlook
-- ✅ **Ad-hoc Category Selection** - Enable or disable certificate categories before each send run
-- ✅ **Expiration Tracking** - Track days until expiration
-- ✅ **Permission Management** - Clear UX for macOS automation permissions
-- ✅ **Offline Operation** - No internet connection required
-- ✅ **Rich HTML Emails** - Beautiful formatted emails with bold, colors, and lists
+## Important v9 Behavior
 
----
+Missing Word template pages are skipped. The app must not send fallback/plain-text reminder emails when an expired certificate has no matching template page.
+
+Examples:
+
+- If Excel has expired `FORMACION` rows but the Word file has no `TELEFORMACION` page, no email is sent for those rows.
+- If Excel has expired `FICHA` rows but the Word file has no `FICHA` page, no email is sent for those rows.
+- This applies to every category, including custom categories.
+
+Category aliases:
+
+- `FORMACION` maps to `TELEFORMACION`.
+- `TELEFORMACIÓN` maps to `TELEFORMACION`.
+- `EPI` maps to `EPIS`.
+
+Custom category flow:
+
+1. Upload Excel.
+2. Add the custom category in the UI, for example `REMOTO`.
+3. Upload or re-upload the Word template so the matching page is parsed.
+4. Enable the desired categories.
+5. Send reminders.
+
+## Input Files
+
+### Excel
+
+Supported columns include:
+
+- Old format: `Pseudonym`, `Documentacion`, `email`, `Fecha Caducidad`
+- New format: `Nombre Trabajador`, `DNI`, `Puesto Trabajo`, `Documentacion`, `Fecha Alta`, `Fecha Caducidad`, `Email`
+
+### Word Templates
+
+Each email template page must start with the matching category title, for example:
+
+- `FICHA`
+- `CONSENTIMIENTO`
+- `TELEFORMACION`
+- `APTO`
+- `EPIS`
+- `RENUNCIA`
+- A custom category added in the UI, for example `REMOTO`
+
+Supported placeholders:
+
+- `[NAME]`
+- `[DATE]`
+- `[CURRENT YEAR]`
 
 ## Tech Stack
 
-### Frontend
+- Next.js static export for the UI.
+- React and TypeScript.
+- Bun for runtime, dependency management, local API server, and tests.
+- Electrobun for macOS app bundling.
+- Mammoth for Word-to-HTML parsing.
+- XLSX for Excel parsing.
+- AppleScript for Microsoft Outlook email sending and macOS permission checks.
+- `pkgbuild`, `hdiutil`, `xattr`, and `codesign` for macOS release packaging.
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| **Next.js** | 16.1.6 | React framework with static export |
-| **React** | 19.2.3 | UI library |
-| **TypeScript** | 5.x | Type safety |
-| **Tailwind CSS** | 4.x | Styling |
-| **React Dropzone** | 15.0.0 | File upload UI |
+Use Bun, not npm, for normal development and release work.
 
-### Backend
+## Local Development
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| **Bun** | 1.3.10 | JavaScript runtime and server |
-| **Electrobun** | 1.16.0 | macOS app bundling framework |
-
-### Libraries
-
-| Library | Purpose |
-|---------|---------|
-| **Mammoth** | 1.11.0 | Convert Word documents to HTML |
-| **XLSX** | 0.18.5 | Parse Excel files |
-| **UUID** | 13.0.0 | Generate unique IDs |
-
-### Native Integration
-
-- **AppleScript** - Control Microsoft Outlook for email sending
-- **macOS Privacy APIs** - Automation permissions management
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Certificate Reminder                      │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  ┌──────────────┐         ┌──────────────┐                 │
-│  │   Browser    │◄────────┤  Bun Server  │                 │
-│  │  (Next.js)   │  HTTP   │  (Backend)   │                 │
-│  └──────────────┘         └──────┬───────┘                 │
-│                                    │                         │
-│                    ┌───────────────┼───────────────┐        │
-│                    │               │               │        │
-│            ┌───────▼──────┐ ┌──────▼──────┐ ┌────▼─────┐  │
-│            │   Excel      │ │    Word     │ │  Outlook │  │
-│            │   Parsing    │ │  Templates  │ │  Emails  │  │
-│            └──────────────┘ └─────────────┘ └──────────┘  │
-│                                                              │
-│  Data Storage: ~/Library/Application Support/               │
-│                CertificateReminder/data/app-data.json       │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Component Flow
-
-1. **User uploads Excel/Word files** → Browser sends to Bun server
-2. **Server processes files** → Parses data with Mammoth/XLSX
-3. **Server saves to disk** → Stores in Application Support
-4. **User clicks "Send Reminders"** → Server checks expirations
-5. **Server sends emails** → Uses AppleScript to control Outlook
-
----
-
-## How It Works
-
-### 1. Certificate Checking Process
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    checkExpirations()                        │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  1. Load certificates from app-data.json                    │
-│                                                              │
-│  2. Check ALL entries for expiration                        │
-│     └─> getExpirationStatus(entry)                          │
-│         └─> calculateDaysUntil(expirationDate)              │
-│                                                              │
-│  3. Separate expired vs valid entries                       │
-│                                                              │
-│  4. Group expired by person+category (prevent duplicates)   │
-│     └─> Key: "{DNI}_{BASE_CATEGORY}"                       │
-│                                                              │
-│  5. For each group, select LATEST expiration date           │
-│     └─> Send ONE notification per person+category           │
-│                                                              │
-│  6. Build reminder payloads                                 │
-│     ├─> Match Word template by category                     │
-│     ├─> Fill template with [NAME] and [DATE]               │
-│     └─> Generate HTML email body                           │
-│                                                              │
-│  7. Send emails via sendEmailNotifications()               │
-│     └─> Sequential processing (500ms delay between emails) │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 2. Excel Parsing
-
-The app supports two Excel formats:
-
-**Old Format:**
-| Pseudonym | Documentacion | email | Fecha Caducidad |
-|-----------|---------------|-------|-----------------|
-
-**New Format:**
-| Nombre Trabajador | DNI | Puesto Trabajo | Documentacion | Fecha Alta | Fecha Caducidad | Email |
-
-**Column Mapping:**
-- Spanish columns are mapped to English properties
-- Date formats: `DD/MM/YYYY`, `DD-MM-YYYY`
-- Email validation: Must contain `@`
-
-### 3. Word Template Processing
-
-```
-Word Document (.docx)
-        │
-        ▼
-Mammoth.convertToHtml()
-        │
-        ▼
-HTML Fragment
-        │
-        ▼
-Extract Sections by Type
-(FICHA, CONSENTIMIENTO, APTO, EPIS, etc.)
-        │
-        ▼
-Template Array
-```
-
-**Template Placeholders:**
-- `[NAME]` - Employee name (extracted from email)
-- `[DATE]` - Expiration date
-- `[CURRENT YEAR]` - Current year
-
----
-
-## Email Sending via Outlook
-
-### The Challenge
-
-Sending emails via AppleScript on macOS requires:
-1. Correct syntax for Microsoft Outlook
-2. Proper HTML handling
-3. Character escaping
-4. Permission management
-
-### The Solution
-
-#### AppleScript Syntax
-
-**Incorrect (causes failure):**
-```applescript
-tell application "Microsoft Outlook"
-  set newMsg to create message
-  set subject of newMsg to "..."
-  set content of newMsg to "..."
-  set newRecipient to make recipient at end of recipients
-  set address of newRecipient to "..."
-  set recipient of newMsg to newRecipient
-  send newMsg
-end tell
-```
-
-**Correct (working):**
-```applescript
-tell application "Microsoft Outlook"
-  set newMsg to make new outgoing message with properties {subject:"...", content:"..."}
-  make new recipient at end of to recipients of newMsg with properties {email address:{address:"..."}}
-  send newMsg
-end tell
-```
-
-#### HTML Handling
-
-**Problem:** Word templates generate HTML fragments without `<html>` and `<body>` tags.
-
-**Solution:** Wrap HTML in proper document structure
-
-```typescript
-// src/lib/email.ts:34-38
-const wrappedBody = body.startsWith('<html>')
-  ? body
-  : `<html><body>${body}</body></html>`;
-```
-
-This ensures Outlook recognizes the content as HTML and renders it properly.
-
-#### Character Escaping
-
-Before passing to AppleScript, HTML must be escaped:
-
-```typescript
-const escapedBody = wrappedBody
-  .replace(/\\/g, '\\\\')  // Backslashes
-  .replace(/"/g, '\\"')    // Quotes
-  .replace(/\$/g, '\\$')   // Dollar signs
-  .replace(/`/g, '\\`')    // Backticks
-  .replace(/\n/g, '\\n')   // Newlines
-  .replace(/\r/g, '\\r');  // Carriage returns
-```
-
-#### Permission Flow
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Permission Request Flow                   │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  1. App starts                                              │
-│     └─> Check Outlook permission via checkOutlookPermission()│
-│                                                              │
-│  2. User clicks "Send Email Reminders"                      │
-│     └─> If no permission → Show permission modal            │
-│                                                              │
-│  3. User grants permission                                  │
-│     ├─> macOS shows: "Certificate Reminder wants to         │
-│     │   control Microsoft Outlook"                          │
-│     └─> User clicks "Open System Settings"                  │
-│                                                              │
-│  4. Enable automation                                       │
-│     ├─> System Settings > Privacy & Security > Automation   │
-│     └─> Check "Microsoft Outlook" checkbox                  │
-│                                                              │
-│  5. Permission granted!                                     │
-│     └─> Emails can be sent                                  │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Development
-
-### Prerequisites
-
-- macOS 10.15+ (Catalina or later)
-- Node.js/Bun installed
-- Microsoft Outlook (for testing email sending)
-
-### Setup
+Install dependencies:
 
 ```bash
-# Install dependencies
 bun install
-
-# Run development server
-bun run dev
-
-# Run Electrobun in development mode
-bun run electrobun:dev
 ```
 
-### Project Scripts
+Run the full local app server:
 
 ```bash
-# Build Next.js UI
+bun run dev
+```
+
+`bun run dev` builds the static UI and starts the Bun server on `http://localhost:3030`. This is the local flow that owns `/api/upload`, `/api/check`, `/api/categories`, `/api/permissions`, and Outlook email sending.
+
+Do not use `bun run dev:ui` for upload/email testing. It starts only the Next UI server.
+
+## Validation
+
+Run these before pushing functional or release changes:
+
+```bash
 bun run build
+bun run test:missing-template
+bun test src/lib/__tests__/scheduler-consentimiento-renuncia.test.ts
+```
 
-# Build Electrobun app (development)
-bun run electrobun:build
+For a release package, also run:
 
-# Build Electrobun app (canary/production)
-bun run electrobun:canary
-
-# Quick build and launch
-./dev.sh
-
-# Build production DMG
+```bash
 ./build-dmg.sh
 ```
 
-### Running Locally
+The build script currently creates both DMG and PKG artifacts.
 
-**Option 1: Development Mode**
+## Release Process
+
+For a new version, for example `9.1.0` or `10.0.0`:
+
+1. Create or switch to a release branch:
+
 ```bash
-# Terminal 1: Run Next.js dev server
-bun run dev
-
-# Terminal 2: Run backend
-bun run electrobun:dev
+git switch -c release/<version>
 ```
 
-**Option 2: Quick Launch**
+2. Update version references in:
+
+- `package.json`
+- `electrobun.config.ts`
+- `build-dmg.sh`
+- `Install-CertificateReminder.command`
+- `pkg-postinstall.sh` if the version appears there
+- `README.md`
+- `USER_GUIDE.md`
+- `DISTRIBUTION_README.md`
+- Desktop handoff docs copied into `Send-To-Colleague-v<version>`
+
+3. Search for stale previous-version references:
+
 ```bash
-./dev.sh  # Builds and launches the app
+rg "<old-version>|Send-To-Colleague-v<old-version>|CertificateReminder-<old-version>"
 ```
 
----
-
-## Building a DMG
-
-### Overview
-
-The DMG build process creates a distributable macOS disk image containing:
-- The native app bundle
-- Documentation (README, User Guide)
-- Optional example files if an `examples/` folder exists locally
-- Launcher scripts
-
-### Build Script
-
-The build process is automated in `build-dmg.sh`:
+4. Run validation:
 
 ```bash
-#!/bin/bash
-
-# Step 1: Build UI
-npm run build
-
-# Step 2: Build app bundle with Electrobun
-bun install && electrobun build --env=canary
-
-# Step 3: Remove quarantine attributes
-xattr -cr "$APP_BUNDLE"
-
-# Step 4: Copy to distribution folder
-cp -R "$APP_BUNDLE" "CertificateReminder-Distribution/"
-
-# Step 5: Add documentation and examples
-cp DISTRIBUTION_README.md "CertificateReminder-Distribution/README.md"
-cp USER_GUIDE.md "CertificateReminder-Distribution/"
-cp -r examples "CertificateReminder-Distribution/"  # optional, if present
-cp launch-app.command "CertificateReminder-Distribution/"
-cp quit-app.sh "CertificateReminder-Distribution/"
-
-# Step 6: Create DMG
-hdiutil create -volname "Certificate Reminder" \
-    -srcfolder "CertificateReminder-Distribution" \
-    -ov -format UDZO \
-    "artifacts/Certificate Reminder-${VERSION}-macOS.dmg"
-
-# Step 7: Remove quarantine from DMG
-xattr -cr "artifacts/Certificate Reminder-${VERSION}-macOS.dmg"
-```
-
-### To Build a DMG
-
-```bash
-# From the app directory
+bun run build
+bun run test:missing-template
+bun test src/lib/__tests__/scheduler-consentimiento-renuncia.test.ts
 ./build-dmg.sh
 ```
 
-### DMG Contents
+5. Create the Desktop handoff folder:
 
-```
-Certificate Reminder (DMG Volume)
-├── CertificateReminder.app              # Main application
-├── README.md                            # Quick start guide
-├── USER_GUIDE.md                        # Detailed user guide
-├── launch-app.command                   # Launcher script
-└── quit-app.sh                          # Quit script
+```text
+/Users/kevin.sabatino/Desktop/Send-To-Colleague-v<version>
 ```
 
-### Distribution
+6. Copy release artifacts from `artifacts/` into that folder:
 
-1. **Copy the DMG** from `artifacts/` to your Desktop
-2. **Rename** for distribution (e.g., `Certificate-Reminder-5.0.0-WORKING.dmg`)
-3. **Send to users** via email, file sharing, etc.
-4. **Users install** by dragging app to Applications folder
+- `CertificateReminder-<version>-macOS.pkg`
+- `CertificateReminder-<version>-macOS.dmg`
+- `Install CertificateReminder.app`
+- `Install-CertificateReminder.command`
+- `INSTALLATION-INSTRUCTIONS.txt`
+- `README-FOR-YOU.md`
 
----
+7. For non-technical users, the primary file is:
+
+```text
+CertificateReminder-<version>-macOS.pkg
+```
+
+They should unzip the folder, double-click the `.pkg`, follow macOS Installer, and wait for the browser to open `http://localhost:3030`.
+
+8. Test the package on the local Mac:
+
+- Remove any existing `/Applications/CertificateReminder.app`.
+- Confirm nothing is listening on `3030`.
+- Install the PKG.
+- Confirm `/Applications/CertificateReminder.app` exists.
+- Confirm `CFBundleVersion` matches the release version.
+- Confirm `http://localhost:3030/api/categories` responds.
+
+Useful checks:
+
+```bash
+lsof -nP -iTCP:3030 -sTCP:LISTEN
+plutil -p /Applications/CertificateReminder.app/Contents/Info.plist
+curl -i http://localhost:3030/api/categories
+```
+
+9. Commit, push, and merge:
+
+```bash
+git add <changed-files>
+git commit -m "..."
+git push origin release/<version>
+git switch main
+git merge origin/release/<version>
+git push origin main
+```
+
+## Packaging Notes
+
+`./build-dmg.sh` is the source of truth for release artifact creation. It performs the hard work:
+
+- Builds the Next.js static UI.
+- Builds the Electrobun macOS app.
+- Creates `CertificateReminder-Distribution/`.
+- Creates `artifacts/CertificateReminder-<version>-macOS.dmg`.
+- Creates `artifacts/CertificateReminder-<version>-macOS.pkg`.
+- Creates `artifacts/Install CertificateReminder.app`.
+- Copies `artifacts/Install-CertificateReminder.command`.
+
+The PKG is the recommended installer because `.command` files can be interrupted by a user's shell startup behavior, such as an `oh-my-zsh` update prompt.
+
+The generated DMG and PKG are not notarized. The PKG postinstall script clears quarantine on the installed app, performs ad-hoc local signing, launches the app as the logged-in user, and opens `http://localhost:3030`.
+
+## Common macOS Issues
+
+If a DMG or app fails to open, the usual cause is macOS quarantine or Gatekeeper. The old v8 manual workaround was:
+
+```bash
+xattr -cr CertificateReminder-8.0.0-macOS.dmg
+open CertificateReminder-8.0.0-macOS.dmg
+```
+
+For v9 and later, the normal user should not need Terminal. Prefer the `.pkg` installer. If the PKG is blocked by macOS, the user can right-click the PKG, choose `Open`, then click `Open`.
+
+If the app installs but `localhost:3030` does not open:
+
+- Check whether an old app is already running on port `3030`.
+- Quit the old app or kill the stale process.
+- Open `/Applications/CertificateReminder.app`.
+- Then visit `http://localhost:3030`.
 
 ## Project Structure
 
-```
-CertificateReminder.app/
-├── src/
-│   ├── app/                    # Next.js frontend
-│   │   ├── page.tsx           # Main UI page
-│   │   ├── layout.tsx         # Root layout
-│   │   └── globals.css        # Global styles
-│   │
-│   ├── components/            # React components
-│   │   └── DataTable.tsx      # Certificate data table
-│   │
-│   ├── bun/                   # Bun backend server
-│   │   └── index.ts           # API routes and server
-│   │
-│   ├── lib/                   # Business logic
-│   │   ├── email.ts           # Email sending via AppleScript
-│   │   ├── excel.ts           # Excel parsing
-│   │   ├── word.ts            # Word template processing
-│   │   ├── expiration.ts      # Expiration calculation
-│   │   ├── scheduler.ts       # Certificate checking logic
-│   │   └── permissions.ts     # macOS permission checks
-│   │
-│   ├── types/                 # TypeScript types
-│   │   └── index.ts           # Shared interfaces
-│   │
-│   └── main-ui/               # Additional UI components
-│
-├── public/                    # Static assets
-│
-├── build-dmg.sh              # DMG build script
-├── dev.sh                    # Development build script
-├── launch-app.command        # Launcher script
-├── quit-app.sh              # Quit script
-├── DISTRIBUTION_README.md   # User-facing README
-├── USER_GUIDE.md           # Detailed user guide
-├── package.json            # Dependencies
-├── tsconfig.json           # TypeScript config
-├── next.config.ts          # Next.js config
-├── electrobun.config.ts    # Electrobun config
-└── README.md              # This file
+```text
+src/app/                         Next.js UI
+src/bun/index.ts                 Bun local server and API routes
+src/lib/excel.ts                 Excel parsing
+src/lib/word.ts                  Word template parsing and category normalization
+src/lib/scheduler.ts             Expiration grouping and send decisions
+src/lib/email.ts                 Outlook AppleScript email sending
+src/lib/permissions.ts           macOS Outlook permission checks
+src/types/index.ts               Shared TypeScript types
+build-dmg.sh                     Release artifact builder
+Install-CertificateReminder.command
+installer-app-launcher.sh        Fallback installer app launcher
+pkg-postinstall.sh               PKG postinstall install/launch script
+AGENTS.md                        Agent operating notes and release checklist
+CLAUDE.md                        Claude entrypoint pointing to AGENTS.md
 ```
 
----
+## Privacy
 
-## Configuration
-
-### Environment Variables
-
-No environment variables required. The app is fully self-contained.
-
-### Data Storage
-
-```
-~/Library/Application Support/CertificateReminder/
-└── data/
-    └── app-data.json    # User's uploaded data
-```
-
-### Port Configuration
-
-The app runs on port **3000** by default. To change:
-
-```typescript
-// src/bun/index.ts:45
-const PORT = 3000;
-```
-
-### Certificate Categories
-
-Supported categories (defined in `src/lib/word.ts`):
-
-```typescript
-const knownTypes = [
-  'FICHA',           # Employee file
-  'CONSENTIMIENTO',  # Consent form
-  'TELEFORMACION',   # Online training
-  'APTO',            # Medical fitness
-  'EPIS',            # PPE (Personal Protective Equipment)
-  'EPI',             # Alternative PPE name
-  'RENUNCIA',        # Waiver
-  'FORMACION'        # Training (maps to TELEFORMACION)
-];
-```
-
-Each Word template page must start with its matching title. If an expired certificate has no matching template page, the app skips that email instead of sending a fallback message.
-
-Custom categories can be added from the send panel. After adding one, upload or re-upload the Word template so any page with that new title is parsed and can be used for email sending.
-
----
-
-## Troubleshooting
-
-### Build Issues
-
-**Problem:** `bun: command not found`
-```bash
-# Solution: Add bun to PATH
-export PATH="$HOME/.bun/bin:$PATH"
-```
-
-**Problem:** Electrobun build fails
-```bash
-# Solution: Clean and rebuild
-rm -rf build/ node_modules/
-bun install
-bun run electrobun:build
-```
-
-### Email Issues
-
-**Problem:** Emails not sending
-- Check Outlook is running
-- Verify Automation permission in System Settings
-- Check console for AppleScript errors
-
-**Problem:** HTML showing as raw tags
-- Ensure HTML is wrapped in `<html><body>` tags
-- Check escaping in `src/lib/email.ts`
-
-### Permission Issues
-
-**Problem:** App can't be opened
-```bash
-# Solution: Remove quarantine attribute
-xattr -cr "CertificateReminder.app"
-```
-
----
-
-## Version History
-
-### Version 5.0.0 (2026-03-18)
-
-**Fixed:**
-- ✅ Corrected AppleScript syntax for Microsoft Outlook on macOS
-- ✅ Restored HTML formatting in email templates
-- ✅ Fixed all certificate types (FICHA, APTO, EPIS, CONSENTIMIENTO, FORMACION)
-
-**Changed:**
-- Updated Word template HTML handling to wrap in proper document structure
-- Improved character escaping for AppleScript
-
-### Version 4.0.2 (2026-03-15)
-
-**Added:**
-- Browser auto-open on startup
-- Launcher script for easy startup
-
-### Version 2.0.0 (2025-03-17)
-
-**Initial release with:**
-- Excel parsing
-- Word template support
-- Outlook email sending
-- Permission management UI
-
----
-
-## License
-
-Internal company tool - MaibornWolff GmbH
-
----
+This is a public GitHub repository. Do not commit personal spreadsheets, Word templates, certificate data, app data, secrets, `.env*` files, generated DMGs, PKGs, app bundles, build folders, or private examples.
 
 ## Support
 
-For technical support:
-1. Check the troubleshooting section above
-2. Review the USER_GUIDE.md
-3. Contact your system administrator
+For future agents: read `AGENTS.md` first. It contains the working context, release conventions, and packaging pitfalls discovered during v9.

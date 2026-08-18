@@ -10,8 +10,11 @@ These notes are the source of truth for AI agents working in this repo. Read thi
 - The baseline public release was recovered from the Desktop v8 deliverable/source investigation.
 - The v8 product deliverable used for comparison was `/Users/kevin.sabatino/Desktop/Send-To-Colleague-v8.0.0`.
 - The recovered v8 source was found under `/Users/kevin.sabatino/Desktop/Important Text Files/Other Projects/CertificatesApp/CertificateReminder.app`.
-- Work for the next deliverable is happening on branch `release/9.0.0`.
-- The intended v9 handoff folder is `/Users/kevin.sabatino/Desktop/Send-To-Colleague-v9.0.0`.
+- Version `9.0.0` has been merged into `main`.
+- The v9 release branch was `release/9.0.0`.
+- The v9 handoff folder is `/Users/kevin.sabatino/Desktop/Send-To-Colleague-v9.0.0`.
+- The recommended v9 installer is `CertificateReminder-9.0.0-macOS.pkg`.
+- The last validated v9 packaging commit was `6bc52c2`.
 
 ## Product Goal
 
@@ -45,6 +48,7 @@ Primary validation commands:
 
 ```bash
 bun run build
+bun run test:missing-template
 bun test src/lib/__tests__/scheduler-consentimiento-renuncia.test.ts
 ./build-dmg.sh
 ```
@@ -61,6 +65,14 @@ For local manual app testing, use `bun run dev`. This builds the static UI and s
 
 Generated build outputs should stay out of Git. `.gitignore` should continue to exclude build artifacts, DMGs, app bundles, app data, examples, and private document/spreadsheet fixtures.
 
+If generated build artifacts become root-owned after package testing, remove only generated outputs with administrator privileges:
+
+```bash
+rm -rf build artifacts CertificateReminder-Distribution
+```
+
+Never remove source files, user data, or Desktop handoff folders while cleaning generated artifacts.
+
 ## Release Versioning
 
 For a release branch, keep version references aligned across:
@@ -76,6 +88,20 @@ For a release branch, keep version references aligned across:
 
 Before finalizing a release package, search for stale previous-version references in the release files.
 
+Use this style of search, replacing the version numbers:
+
+```bash
+rg "8\.0\.0|Send-To-Colleague-v8|CertificateReminder-8"
+```
+
+Also check current-version references:
+
+```bash
+rg "9\.0\.0|Send-To-Colleague-v9|CertificateReminder-9"
+```
+
+Do not update generated artifacts by hand. Update scripts/source docs, run `./build-dmg.sh`, then copy fresh artifacts.
+
 ## Git Workflow
 
 - Keep `main` as the public baseline.
@@ -84,6 +110,7 @@ Before finalizing a release package, search for stale previous-version reference
 - Do not commit generated folders or private data.
 - Preserve user changes. Do not revert files unless the user explicitly asks.
 - When pushing release work, push the branch to `origin` and report the branch URL and commit hash.
+- After a release is validated, merge the release branch into `main`, run validation on `main`, and push `main`.
 
 ## Localhost And Installed App Checks
 
@@ -94,6 +121,16 @@ When validating a running installed app, inspect the process bound to the port f
 ```
 
 Do not assume the repo dev server is serving `localhost:3030`; confirm with process inspection.
+
+Useful checks:
+
+```bash
+lsof -nP -iTCP:3030 -sTCP:LISTEN
+plutil -p /Applications/CertificateReminder.app/Contents/Info.plist
+curl -i http://localhost:3030/api/categories
+```
+
+If `curl` appears to fail inside a restricted tool environment, rerun it outside the sandbox if approval is available. During v9 testing, sandboxed network checks sometimes produced false negatives.
 
 ## Packaging Notes
 
@@ -114,6 +151,112 @@ CertificateReminder-9.0.0-macOS.pkg
 The previous DMG plus `.command` flow is retained as a fallback, but `.command` files can be blocked by user shell startup prompts such as oh-my-zsh update prompts. Do not make non-technical users run Terminal commands for the normal install path.
 
 If the build script skips `examples/`, that is expected when private examples are intentionally absent from the public repo.
+
+### Release Checklist For A Future Agent
+
+Use this checklist for every new version.
+
+1. Read `AGENTS.md`, `README.md`, `build-dmg.sh`, `pkg-postinstall.sh`, and `electrobun.config.ts`.
+2. Confirm the current branch and working tree:
+
+```bash
+git status -sb
+git branch --show-current
+```
+
+3. Create a release branch if needed:
+
+```bash
+git switch -c release/<version>
+```
+
+4. Update version references in source/docs/scripts.
+5. Run stale-version searches with `rg`.
+6. Run tests and build:
+
+```bash
+bun run build
+bun run test:missing-template
+bun test src/lib/__tests__/scheduler-consentimiento-renuncia.test.ts
+./build-dmg.sh
+```
+
+7. Create or refresh the Desktop handoff folder:
+
+```text
+/Users/kevin.sabatino/Desktop/Send-To-Colleague-v<version>
+```
+
+8. Copy fresh artifacts from `artifacts/`:
+
+```text
+CertificateReminder-<version>-macOS.pkg
+CertificateReminder-<version>-macOS.dmg
+Install CertificateReminder.app
+Install-CertificateReminder.command
+```
+
+9. Add/update these human-facing files in the Desktop handoff folder:
+
+```text
+INSTALLATION-INSTRUCTIONS.txt
+README-FOR-YOU.md
+```
+
+10. Test the PKG from a clean state:
+
+```bash
+lsof -nP -iTCP:3030 -sTCP:LISTEN
+test -e /Applications/CertificateReminder.app && echo exists || echo missing
+```
+
+Remove the test install only when needed:
+
+```bash
+rm -rf /Applications/CertificateReminder.app
+```
+
+If macOS denies deletion, use an administrator-approved delete. Do not delete the Desktop handoff folder.
+
+11. Install the PKG and verify:
+
+```bash
+plutil -p /Applications/CertificateReminder.app/Contents/Info.plist
+lsof -nP -iTCP:3030 -sTCP:LISTEN
+curl -i http://localhost:3030/api/categories
+```
+
+The app version must match the release version, and `/api/categories` must return HTTP 200.
+
+12. Clean the local test install if Kevin wants a fresh manual test.
+13. Commit intentional source/docs/script changes only.
+14. Push the release branch.
+15. Merge into `main`, validate again, and push `main`.
+
+### Non-Technical User Install Instruction
+
+Tell users:
+
+1. Unzip `Send-To-Colleague-v<version>.zip`.
+2. Open the folder.
+3. Double-click `CertificateReminder-<version>-macOS.pkg`.
+4. Follow the macOS Installer screens.
+5. Wait for the browser to open `http://localhost:3030`.
+
+If macOS blocks the package, tell them to right-click the `.pkg`, choose `Open`, then click `Open`.
+
+Do not tell non-technical users to run Terminal commands unless all graphical install options have failed.
+
+### Known Packaging Pitfalls From v9
+
+- Double-clicking `CertificateReminder.app` directly inside the mounted DMG can fail with `Electrobun self-extractor... error: AccessDenied`.
+- The app must run from a writable installed location such as `/Applications`.
+- `.command` installer files can be interrupted before execution by shell startup prompts like `oh-my-zsh`.
+- A PKG made with `pkgbuild --component` can report success without placing the app where expected because of PackageKit bundle behavior.
+- The current PKG avoids that by using `pkgbuild --nopayload` and a `postinstall` script that extracts an embedded `CertificateReminder.app.tar.gz` into `/Applications`.
+- The PKG postinstall clears quarantine, applies ad-hoc signing, launches as the logged-in console user, and opens `http://localhost:3030`.
+- DMG and PKG artifacts are not notarized.
+- v8 relied on a manual quarantine workaround: `xattr -cr CertificateReminder-8.0.0-macOS.dmg && open CertificateReminder-8.0.0-macOS.dmg`.
 
 ## Security And Privacy
 
