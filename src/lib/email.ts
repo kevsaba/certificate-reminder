@@ -13,6 +13,14 @@ export function extractEmailSubject(category: string): string {
   return match ? match[1].trim().toUpperCase() : category.trim().toUpperCase();
 }
 
+export function buildOutlookEmailBody(payload: ReminderPayload): string {
+  const body = payload.html || payload.message;
+
+  return body.startsWith('<html>')
+    ? body
+    : `<html><body>${body}</body></html>`;
+}
+
 /**
  * Sends an email notification for an expired certificate using AppleScript
  * Uses HTML template with rich formatting (bold, colors, bullets)
@@ -23,9 +31,6 @@ export async function sendEmailNotification(
   payload: ReminderPayload
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Use HTML template directly (rich formatting: bold, colors, bullets)
-    const body = payload.html || payload.message;
-
     // Extract subject from category
     const subject = extractEmailSubject(payload.category);
 
@@ -33,9 +38,7 @@ export async function sendEmailNotification(
 
     // Wrap HTML in proper document structure for Outlook to recognize as HTML
     // Word templates generate HTML fragments, so we need to add <html><body> tags
-    const wrappedBody = body.startsWith('<html>')
-      ? body
-      : `<html><body>${body}</body></html>`;
+    const wrappedBody = buildOutlookEmailBody(payload);
 
     // Escape special characters for AppleScript
     // IMPORTANT: We preserve HTML tags for rich formatting

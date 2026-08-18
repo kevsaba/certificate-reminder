@@ -15,7 +15,9 @@
     "electrobun:canary": "electrobun build --env=canary",
     "electrobun:stable": "electrobun build --env=stable",
     "quick": "./dev.sh",
-    "dist": "./build-dmg.sh"
+    "dist": "./build-dmg.sh",
+    "test:missing-template": "bun test src/lib/__tests__/missing-word-template.test.ts",
+    "dry-run:missing-template": "bun scripts/missing-template-dry-run.ts"
   },
   "dependencies": {
     "electrobun": "^1.16.0",
