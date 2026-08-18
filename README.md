@@ -491,6 +491,8 @@ const knownTypes = [
 
 Each Word template page must start with its matching title. If an expired certificate has no matching template page, the app skips that email instead of sending a fallback message.
 
+Custom categories can be added from the send panel. After adding one, upload or re-upload the Word template so any page with that new title is parsed and can be used for email sending.
+
 ---
 
 ## Troubleshooting

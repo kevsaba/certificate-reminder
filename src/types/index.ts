@@ -56,4 +56,5 @@ export interface CheckOptions {
 export interface AppData {
   entries: CertificateEntry[];
   templates: Template[];
+  customCategories?: string[];
 }

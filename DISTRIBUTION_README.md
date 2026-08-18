@@ -78,8 +78,9 @@ That's it! The app can now send emails through Outlook.
 2. **Upload your Excel file** with certificate data
 3. **(Optional) Upload Word templates** for custom emails
 4. **Enable or disable categories** for this send run
-5. **Click "Send Email Reminders"** to send notifications
-6. **Click "Close App"** when done
+5. **Add custom categories** if your Excel/Word files use new category titles, then re-upload the Word template
+6. **Click "Send Email Reminders"** to send notifications
+7. **Click "Close App"** when done
 
 ---
 
@@ -135,6 +136,7 @@ The app supports two Excel formats:
 If using custom Word templates:
 - Each page must start with its matching title: FICHA, CONSENTIMIENTO, TELEFORMACION, APTO, EPIS/EPI, or RENUNCIA
 - Expired certificates are skipped when their matching template page is missing
+- Custom categories can be added in the app before uploading the Word template
 - Use placeholders: `[NAME]` and `[DATE]`
 - Upload .docx or .doc files
 

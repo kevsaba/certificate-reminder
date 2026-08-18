@@ -22,11 +22,15 @@ export function extractBaseCategory(category: string): string {
   let baseCategory = match ? match[1].trim() : category.trim();
 
   // Normalize category variations to group them together
-  const normalized = baseCategory.toUpperCase();
+  const normalized = baseCategory.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
   // Map "FORMACION" (Spanish) to "TELEFORMACION" for consistency
-  if (normalized === 'FORMACION' || normalized === 'TELEFORMACIÓN') {
+  if (normalized === 'FORMACION' || normalized === 'TELEFORMACION') {
     return 'TELEFORMACION';
+  }
+
+  if (normalized === 'EPI') {
+    return 'EPIS';
   }
 
   // Return original case for other categories

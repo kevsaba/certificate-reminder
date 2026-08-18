@@ -1,6 +1,6 @@
 import { CertificateEntry, CheckOptions, CheckResult, ReminderPayload, Template } from '@/types';
 import { sendEmailNotifications } from './email';
-import { matchTemplate, fillTemplate, extractNameFromEmail } from './word';
+import { matchTemplate, fillTemplate, extractNameFromEmail, normalizeTemplateType } from './word';
 import { getExpirationStatus, calculateDaysUntil, extractBaseCategory } from './expiration';
 
 export async function checkExpirations(
@@ -10,10 +10,10 @@ export async function checkExpirations(
 ): Promise<CheckResult> {
   const channels = options.channels || { email: true };
   const enabledCategories = options.enabledCategories
-    ? new Set(options.enabledCategories.map(category => category.trim().toUpperCase()))
+    ? new Set(options.enabledCategories.map(normalizeTemplateType))
     : null;
   const entriesForCheck = enabledCategories
-    ? entries.filter(entry => enabledCategories.has(extractBaseCategory(entry.category).toUpperCase()))
+    ? entries.filter(entry => enabledCategories.has(normalizeTemplateType(extractBaseCategory(entry.category))))
     : entries;
 
   // ========================================================================
@@ -182,7 +182,7 @@ export async function checkExpirations(
 
   if (enabledCategories) {
     for (const entry of entries) {
-      const baseCategory = extractBaseCategory(entry.category).toUpperCase();
+      const baseCategory = normalizeTemplateType(extractBaseCategory(entry.category));
 
       if (enabledCategories.has(baseCategory)) continue;
 

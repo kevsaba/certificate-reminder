@@ -1,7 +1,7 @@
 // Bun backend for CertificateReminder
 import { serve, spawn } from 'bun';
 import { parseExcel, validateExcel } from '../lib/excel';
-import { parseWordTemplates } from '../lib/word';
+import { normalizeTemplateType, parseWordTemplates } from '../lib/word';
 import { checkExpirations } from '../lib/scheduler';
 import { checkOutlookPermission, isOutlookRunning } from '../lib/permissions';
 import { join } from 'path';
@@ -98,12 +98,14 @@ server = serve({
         const buffer = await file.arrayBuffer();
 
         if (type === 'word' || file.name.endsWith('.docx') || file.name.endsWith('.doc')) {
-          const templates = await parseWordTemplates(Buffer.from(buffer));
-
           const existingData = loadAppData();
+          const customCategories = existingData?.customCategories || [];
+          const templates = await parseWordTemplates(Buffer.from(buffer), customCategories);
+
           saveAppData({
             entries: existingData?.entries || [],
             templates,
+            customCategories,
           });
 
           return new Response(JSON.stringify({
@@ -130,6 +132,7 @@ server = serve({
         saveAppData({
           entries,
           templates: existingData?.templates || [],
+          customCategories: existingData?.customCategories || [],
         });
 
         return new Response(JSON.stringify({
@@ -142,6 +145,51 @@ server = serve({
       } catch (error: any) {
         console.error('Upload error:', error);
         return new Response(JSON.stringify({ error: 'Failed to process file' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
+    // Handle custom categories
+    if (url.pathname === '/api/categories') {
+      try {
+        const existingData = loadAppData();
+        const customCategories = existingData?.customCategories || [];
+
+        if (method === 'GET') {
+          return new Response(JSON.stringify({ customCategories }), {
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
+        if (method === 'POST') {
+          const body = await req.json();
+          const category = typeof body.category === 'string'
+            ? normalizeTemplateType(body.category)
+            : '';
+
+          if (!category) {
+            return new Response(JSON.stringify({ error: 'Category name is required' }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+
+          const updatedCategories = Array.from(new Set([...customCategories, category])).sort();
+          saveAppData({
+            entries: existingData?.entries || [],
+            templates: existingData?.templates || [],
+            customCategories: updatedCategories,
+          });
+
+          return new Response(JSON.stringify({ customCategories: updatedCategories }), {
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      } catch (error) {
+        console.error('Category error:', error);
+        return new Response(JSON.stringify({ error: 'Failed to update categories' }), {
           status: 500,
           headers: { 'Content-Type': 'application/json' },
         });

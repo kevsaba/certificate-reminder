@@ -24,10 +24,15 @@ export default function Home() {
   const [checking, setChecking] = useState(false);
   const [lastResult, setLastResult] = useState<NotificationResult | null>(null);
   const [enabledCategories, setEnabledCategories] = useState<string[]>([]);
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
+  const [newCategory, setNewCategory] = useState('');
 
   const categoryOptions = useMemo(() => {
-    return Array.from(new Set(entries.map(entry => extractBaseCategory(entry.category).toUpperCase()))).sort();
-  }, [entries]);
+    return Array.from(new Set([
+      ...entries.map(entry => extractBaseCategory(entry.category).toUpperCase()),
+      ...customCategories,
+    ])).sort();
+  }, [entries, customCategories]);
 
   // Permission UX state
   const [showWelcome, setShowWelcome] = useState(() => {
@@ -53,6 +58,24 @@ export default function Home() {
       }
     };
     checkPermission();
+  }, []);
+
+  useEffect(() => {
+    const loadCustomCategories = async () => {
+      try {
+        const response = await fetch('/api/categories');
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data.customCategories)) {
+            setCustomCategories(data.customCategories);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load custom categories:', error);
+      }
+    };
+
+    loadCustomCategories();
   }, []);
 
   const handleExcelUpload = useCallback(async (file: File) => {
@@ -207,6 +230,36 @@ export default function Home() {
         ? current.filter(enabled => enabled !== category)
         : [...current, category].sort()
     );
+  };
+
+  const addCustomCategory = async () => {
+    const category = newCategory.trim().toUpperCase();
+    if (!category) return;
+
+    try {
+      const response = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || 'Failed to add category');
+        return;
+      }
+
+      const updatedCategories = Array.isArray(data.customCategories)
+        ? data.customCategories
+        : [...customCategories, category].sort();
+
+      setCustomCategories(updatedCategories);
+      setEnabledCategories(current => Array.from(new Set([...current, category])).sort());
+      setNewCategory('');
+    } catch (error) {
+      console.error('Failed to add category:', error);
+      alert('Failed to add category');
+    }
   };
 
   const shutdownApp = async () => {
@@ -429,6 +482,34 @@ export default function Home() {
                     </label>
                   ))}
                 </div>
+
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                  <input
+                    type="text"
+                    value={newCategory}
+                    onChange={(event) => setNewCategory(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        addCustomCategory();
+                      }
+                    }}
+                    placeholder="New category"
+                    className="min-w-0 flex-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={addCustomCategory}
+                    className="px-3 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                  >
+                    Add Category
+                  </button>
+                </div>
+                {customCategories.length > 0 && (
+                  <p className="mt-2 text-xs text-gray-500">
+                    Re-upload Word templates after adding a category so its page can be recognized.
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center justify-between">

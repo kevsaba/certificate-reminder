@@ -165,6 +165,72 @@ describe('missing Word template behavior', () => {
     expect(matchTemplate(templates, 'RENUNCIA')).toEqual(expect.objectContaining({ type: 'RENUNCIA' }));
   });
 
+  test('custom categories are parsed from Word titles and matched to expired certificates', async () => {
+    const templates = parseWordTemplateHtml([
+      '<p><strong>FICHA</strong></p>',
+      '<p>Ficha body.</p>',
+      '<p><strong>SEGURIDAD</strong></p>',
+      '<p>Seguridad body for [NAME] on [DATE].</p>',
+    ].join(''), ['SEGURIDAD']);
+
+    const result = await checkExpirations([
+      {
+        id: 'custom-category',
+        dni: 'CUSTOM_CATEGORY',
+        category: 'SEGURIDAD - 2025',
+        expirationDate: new Date('2026-01-10'),
+        email: testRecipient,
+      },
+    ], templates, { channels: { email: false } });
+
+    expect(templates.map((template) => template.type)).toEqual(['FICHA', 'SEGURIDAD']);
+    expect(matchTemplate(templates, 'SEGURIDAD')).toEqual(expect.objectContaining({ type: 'SEGURIDAD' }));
+    expect(result.results).toEqual([
+      expect.objectContaining({ category: 'SEGURIDAD - 2025', status: 'sent' }),
+    ]);
+  });
+
+  test('custom category titles require a whole-title match, not a prefix match', () => {
+    const templates = parseWordTemplateHtml(
+      '<p><strong>SAFETY</strong></p><p>Safety body.</p>',
+      ['SAFE']
+    );
+
+    expect(templates).toEqual([]);
+  });
+
+  test('category aliases normalize before matching and filtering', async () => {
+    const templates = parseWordTemplateHtml(
+      '<p><strong>TELEFORMACIÓN</strong></p><p>Teleformacion body.</p><p><strong>EPI</strong></p><p>Epi body.</p>'
+    );
+
+    const result = await checkExpirations([
+      {
+        id: 'formacion-alias',
+        dni: 'ALIAS_1',
+        category: 'FORMACION - 2025',
+        expirationDate: new Date('2026-01-10'),
+        email: testRecipient,
+      },
+      {
+        id: 'epi-alias',
+        dni: 'ALIAS_2',
+        category: 'EPI - 2025',
+        expirationDate: new Date('2026-01-10'),
+        email: testRecipient,
+      },
+    ], templates, {
+      channels: { email: false },
+      enabledCategories: ['TELEFORMACION', 'EPIS'],
+    });
+
+    expect(templates.map((template) => template.type)).toEqual(['TELEFORMACION', 'EPIS']);
+    expect(result.results.filter((entry) => entry.status === 'sent').map((entry) => entry.category).sort()).toEqual([
+      'EPI - 2025',
+      'FORMACION - 2025',
+    ]);
+  });
+
   test('email sender refuses to send when no template HTML is available', async () => {
     const payload = createPayload('FORMACION - 2025', templatesWithoutTeleformacion);
 

@@ -5,31 +5,69 @@ export interface Template {
   html: string;
 }
 
-export async function parseWordTemplates(buffer: Buffer): Promise<Template[]> {
-  const result = await mammoth.convertToHtml({ buffer });
-  return parseWordTemplateHtml(result.value);
+export const BUILT_IN_TEMPLATE_TYPES = [
+  'FICHA',
+  'CONSENTIMIENTO',
+  'TELEFORMACION',
+  'TELEFORMACIÓN',
+  'APTO',
+  'EPIS',
+  'EPI',
+  'RENUNCIA',
+  'FORMACION',
+];
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-export function parseWordTemplateHtml(html: string): Template[] {
-  const knownTypes = ['FICHA', 'CONSENTIMIENTO', 'TELEFORMACION', 'APTO', 'EPIS', 'EPI', 'RENUNCIA', 'FORMACION'];
+export function normalizeTemplateType(type: string): string {
+  const normalized = type.trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  if (normalized === 'FORMACION') return 'TELEFORMACION';
+  if (normalized === 'EPI') return 'EPIS';
+
+  return normalized;
+}
+
+export function getKnownTemplateTypes(customCategories: string[] = []): string[] {
+  return Array.from(new Set(
+    [...BUILT_IN_TEMPLATE_TYPES, ...customCategories]
+      .flatMap(category => [category.trim().toUpperCase(), normalizeTemplateType(category)])
+      .filter(Boolean)
+  ));
+}
+
+export async function parseWordTemplates(buffer: Buffer, customCategories: string[] = []): Promise<Template[]> {
+  const result = await mammoth.convertToHtml({ buffer });
+  return parseWordTemplateHtml(result.value, customCategories);
+}
+
+export function parseWordTemplateHtml(html: string, customCategories: string[] = []): Template[] {
+  const knownTypes = getKnownTemplateTypes(customCategories);
   const templates: Template[] = [];
+  const knownTypePattern = knownTypes
+    .sort((a, b) => b.length - a.length)
+    .map(escapeRegex)
+    .join('|');
   
   const starts: Array<{ index: number; type: string }> = [];
   
-  const startRegex = new RegExp(`^\\s*<p[^>]*>\\s*<strong>\\s*(${knownTypes.join('|')})`, 'i');
+  const titleBoundary = '(?=\\s|<|&nbsp;|\\u00a0|:|-)';
+  const startRegex = new RegExp(`^\\s*<p[^>]*>\\s*<strong>\\s*(${knownTypePattern})${titleBoundary}`, 'i');
   const startMatch = html.match(startRegex);
   if (startMatch) {
-    starts.push({ index: 0, type: startMatch[1].toUpperCase() });
+    starts.push({ index: 0, type: normalizeTemplateType(startMatch[1]) });
   }
   
   const sectionRegex = new RegExp(
-    `(</p>\\s*)(<p[^>]*>\\s*(?:<br\\s*/?>\\s*)?<strong>\\s*(${knownTypes.join('|')})[\\s\\S]*?</strong>)`,
+    `(</p>\\s*)(<p[^>]*>\\s*(?:<br\\s*/?>\\s*)?<strong>\\s*(${knownTypePattern})${titleBoundary}[\\s\\S]*?</strong>)`,
     'gi'
   );
   
   let match;
   while ((match = sectionRegex.exec(html)) !== null) {
-    const type = match[3].toUpperCase();
+    const type = normalizeTemplateType(match[3]);
     const pStart = match.index + match[1].length;
     starts.push({ index: pStart, type });
   }
@@ -59,30 +97,33 @@ export function fillTemplate(template: Template, name: string, date: string): st
 }
 
 export function matchTemplate(templates: Template[], documentationType: string): Template | null {
-  const docUpper = documentationType.toUpperCase();
+  const templateType = normalizeTemplateType(documentationType);
+  const exactMatch = templates.find(t => normalizeTemplateType(t.type) === templateType);
+
+  if (exactMatch) return exactMatch;
 
   // Map FORMACION to TELEFORMACION
-  if (docUpper.includes('FORMACION')) {
+  if (templateType.includes('FORMACION')) {
     return templates.find(t => t.type === 'TELEFORMACION') || null;
   }
 
   // Check for specific template types
-  if (docUpper.includes('FICHA')) {
+  if (templateType.includes('FICHA')) {
     return templates.find(t => t.type === 'FICHA') || null;
   }
-  if (docUpper.includes('CONSENT')) {
+  if (templateType.includes('CONSENT')) {
     return templates.find(t => t.type === 'CONSENTIMIENTO') || null;
   }
-  if (docUpper.includes('TELEFORM')) {
+  if (templateType.includes('TELEFORM')) {
     return templates.find(t => t.type === 'TELEFORMACION') || null;
   }
-  if (docUpper.includes('APTO')) {
+  if (templateType.includes('APTO')) {
     return templates.find(t => t.type === 'APTO') || null;
   }
-  if (docUpper.includes('EPI')) {
+  if (templateType.includes('EPI')) {
     return templates.find(t => t.type === 'EPIS' || t.type === 'EPI') || null;
   }
-  if (docUpper.includes('RENUNC')) {
+  if (templateType.includes('RENUNC')) {
     return templates.find(t => t.type === 'RENUNCIA') || null;
   }
 
