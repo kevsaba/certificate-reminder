@@ -1,6 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 import { checkExpirations } from '../scheduler';
-import type { CertificateEntry } from '@/types';
+import type { CertificateEntry, Template } from '@/types';
+
+const templates: Template[] = [
+  { type: 'FICHA', html: '<p>FICHA [NAME] [DATE]</p>' },
+  { type: 'CONSENTIMIENTO', html: '<p>CONSENTIMIENTO [NAME] [DATE]</p>' },
+  { type: 'RENUNCIA', html: '<p>RENUNCIA [NAME] [DATE]</p>' },
+  { type: 'APTO', html: '<p>APTO [NAME] [DATE]</p>' },
+  { type: 'EPIS', html: '<p>EPIS [NAME] [DATE]</p>' },
+];
 
 function createEntry(
   dni: string,
@@ -18,7 +26,7 @@ function createEntry(
 }
 
 async function sentCategories(entries: CertificateEntry[]): Promise<string[]> {
-  const result = await checkExpirations(entries, [], { channels: { email: false } });
+  const result = await checkExpirations(entries, templates, { channels: { email: false } });
   return result.results
     .filter((entry) => entry.status === 'sent')
     .map((entry) => entry.category)

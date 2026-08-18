@@ -49,13 +49,20 @@ function createPayload(category: string): ReminderPayload {
 
 for (const category of ['FORMACION - 2025', 'TELEFORMACION - 2025', 'FICHA - 2025']) {
   const payload = createPayload(category);
+  const wouldSend = Boolean(payload.html);
 
   console.log('---');
   console.log(`To: ${payload.email}`);
   console.log(`Category: ${payload.category}`);
   console.log(`Base category: ${extractBaseCategory(payload.category)}`);
   console.log(`Subject: ${extractEmailSubject(payload.category)}`);
-  console.log(`Uses Word template: ${payload.html ? 'yes' : 'no'}`);
-  console.log('Outlook body:');
-  console.log(buildOutlookEmailBody(payload));
+  console.log(`Uses Word template: ${wouldSend ? 'yes' : 'no'}`);
+  console.log(`Would send email: ${wouldSend ? 'yes' : 'no'}`);
+
+  if (wouldSend) {
+    console.log('Outlook body:');
+    console.log(buildOutlookEmailBody(payload));
+  } else {
+    console.log('Reason: skipped because no matching Word template page exists');
+  }
 }

@@ -91,7 +91,7 @@ export function matchTemplate(templates: Template[], documentationType: string):
     return templates.find(t => t.type === 'RENUNCIA') || null;
   }
 
-  return templates.find(t => t.type === 'DEFAULT') || templates[0] || null;
+  return null;
 }
 
 export function extractNameFromEmail(email: string): string {

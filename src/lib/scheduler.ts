@@ -191,15 +191,20 @@ export async function checkExpirations(
     const name = (entry as any).name || extractNameFromEmail(entry.email);
     const dateStr = entry.expirationDate.toLocaleDateString('es-ES');
 
-    let message: string;
-    let html: string | undefined;
-
-    if (template) {
-      html = fillTemplate(template, name, dateStr);
-      message = `${entry.email} ${entry.category} expired (${expirationStatus.reason})`;
-    } else {
-      message = `${entry.email} ${entry.category} expired (${expirationStatus.reason})`;
+    if (!template) {
+      console.log(`[Scheduler] Skipping ${entry.email} ${entry.category}: no matching Word template for ${baseCategory}`);
+      result.results.push({
+        email: entry.email,
+        category: entry.category,
+        expirationDate: entry.expirationDate.toISOString().split('T')[0],
+        daysRemaining: daysUntil,
+        status: 'skipped',
+      });
+      continue;
     }
+
+    const html = fillTemplate(template, name, dateStr);
+    const message = `${entry.email} ${entry.category} expired (${expirationStatus.reason})`;
 
     const payload: ReminderPayload = {
       email: entry.email,
@@ -222,14 +227,14 @@ export async function checkExpirations(
   }
 
   // Add all other entries (both expired and valid) as "skipped"
-  const notifiedKeys = new Set(entriesToNotify.map(e => `${e.dni}_${extractBaseCategory(e.category)}`));
+  const handledKeys = new Set(entriesToNotify.map(e => `${e.dni}_${extractBaseCategory(e.category)}`));
 
   for (const { entry, daysUntil } of allEntriesWithStatus) {
     const baseCategory = extractBaseCategory(entry.category);
     const groupKey = `${entry.dni}_${baseCategory}`;
 
-    // Skip if we already sent a notification for this group
-    if (notifiedKeys.has(groupKey)) continue;
+    // Skip if we already handled this group as sent or missing-template skipped.
+    if (handledKeys.has(groupKey)) continue;
 
     result.results.push({
       email: entry.email,

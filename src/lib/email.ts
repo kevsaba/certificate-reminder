@@ -31,6 +31,13 @@ export async function sendEmailNotification(
   payload: ReminderPayload
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    if (!payload.html) {
+      return {
+        success: false,
+        error: `MISSING_TEMPLATE: No Word template matched ${payload.category}; email was not sent.`,
+      };
+    }
+
     // Extract subject from category
     const subject = extractEmailSubject(payload.category);
 
