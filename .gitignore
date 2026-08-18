@@ -8,6 +8,7 @@ out/
 build/
 artifacts/
 dist/
+CertificateReminder-Distribution/
 
 # Electron/Electrobun
 *.dmg

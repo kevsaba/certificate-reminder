@@ -24,7 +24,7 @@ If you didn't receive the installer script:
 ### 1. Manual Quarantine Removal
 Open Terminal and run:
 ```bash
-xattr -cr ~/Downloads/CertificateReminder-8.0.0-macOS.dmg
+xattr -cr ~/Downloads/CertificateReminder-9.0.0-macOS.dmg
 ```
 (Adjust the path if you downloaded to a different location)
 
@@ -140,16 +140,16 @@ If using custom Word templates:
 
 ## Version
 
-**Version**: 8.0.0
+**Version**: 9.0.0
 **Date**: 2026-03-25
 **Requires**: macOS 10.15+, Microsoft Outlook
 
-### What's New in 8.0.0
+### What's New in 9.0.0
 - ✅ **NEW**: CONSENTIMIENTO/RENUNCIA either-or logic
   - When both certificates are expired, only sends email for the one with the later expiration date
   - If both expired on same date, only sends CONSENTIMIENTO
   - If one is not expired, no email is sent for either
-- ✅ Updated installer wrapper script to v8.0.0
+- ✅ Updated installer wrapper script to v9.0.0
 - ✅ Bug fixes and performance improvements
 
 ### What's New in 7.0.0

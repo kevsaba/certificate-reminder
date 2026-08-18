@@ -2,7 +2,7 @@
 
 ## Installation
 
-1. **Double-click** `CertificateReminder-8.0.0-macOS.dmg` to mount it
+1. **Double-click** `CertificateReminder-9.0.0-macOS.dmg` to mount it
 2. **Drag** `CertificateReminder.app` to **Applications**
 3. **Launch** from Applications or Spotlight
 

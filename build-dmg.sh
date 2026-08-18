@@ -5,7 +5,7 @@ set -e
 # Builds the app and creates a DMG with quarantine attributes removed
 
 APP_NAME="CertificateReminder"
-VERSION="8.0.0"
+VERSION="9.0.0"
 DMG_NAME="${APP_NAME}-${VERSION}-macOS.dmg"
 
 echo "🔨 Building $APP_NAME v$VERSION..."
@@ -130,7 +130,7 @@ echo "  - Distribution: $DIST_DIR"
 echo ""
 echo "To distribute:"
 echo "  1. Send BOTH files to users:"
-echo "     - CertificateReminder-8.0.0-macOS.dmg"
+echo "     - CertificateReminder-9.0.0-macOS.dmg"
 echo "     - Install-CertificateReminder.command"
 echo "  2. Tell users to run Install-CertificateReminder.command FIRST"
 echo "  3. The script will remove quarantine and open the DMG automatically"

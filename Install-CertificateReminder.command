@@ -1,5 +1,5 @@
 #!/bin/bash
-# Certificate Reminder Installer v8.0.0
+# Certificate Reminder Installer v9.0.0
 # Removes quarantine attributes and opens DMG
 
 set -e
@@ -12,7 +12,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}╔════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║   Certificate Reminder v8.0.0 - Installer     ║${NC}"
+echo -e "${BLUE}║   Certificate Reminder v9.0.0 - Installer     ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -20,7 +20,7 @@ echo ""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # DMG filename (must match)
-DMG_NAME="CertificateReminder-8.0.0-macOS.dmg"
+DMG_NAME="CertificateReminder-9.0.0-macOS.dmg"
 DMG_PATH="$SCRIPT_DIR/$DMG_NAME"
 
 # Check if DMG exists
