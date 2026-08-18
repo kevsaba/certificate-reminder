@@ -42,7 +42,7 @@ function loadAppData(): AppData | null {
   }
 }
 
-const PORT = 3030;
+const PORT = Number(process.env.PORT || 3030);
 
 console.log('CertificateReminder Bun backend starting...');
 
