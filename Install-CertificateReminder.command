@@ -1,6 +1,6 @@
 #!/bin/bash
 # Certificate Reminder Installer v9.0.0
-# Removes quarantine attributes and opens DMG
+# Installs the app from the DMG, clears quarantine attributes, and launches it
 
 set -e
 
@@ -49,24 +49,68 @@ else
 fi
 echo ""
 
-# Open the DMG
-echo -e "${YELLOW}📀 Opening disk image...${NC}"
-echo ""
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
-echo "In the window that opens:"
-echo "  1. Drag CertificateReminder.app to Applications"
-echo "  2. Wait for copy to complete"
-echo "  3. Eject the disk (drag to Trash)"
-echo "  4. Open CertificateReminder from Applications"
-echo ""
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+APP_NAME="CertificateReminder.app"
+APP_DEST="/Applications/$APP_NAME"
+MOUNT_PATH=""
+
+cleanup() {
+    if [ -n "$MOUNT_PATH" ] && [ -d "$MOUNT_PATH" ]; then
+        hdiutil detach "$MOUNT_PATH" >/dev/null 2>&1 || true
+    fi
+}
+trap cleanup EXIT
+
+echo -e "${YELLOW}📀 Mounting disk image...${NC}"
+ATTACH_OUTPUT="$(hdiutil attach "$DMG_PATH" -nobrowse)"
+MOUNT_PATH="$(printf '%s\n' "$ATTACH_OUTPUT" | awk -F'\t' '/\/Volumes\/CertificateReminder/ {print $NF; exit}')"
+
+if [ -z "$MOUNT_PATH" ] || [ ! -d "$MOUNT_PATH/$APP_NAME" ]; then
+    echo -e "${RED}❌ Error: Could not find $APP_NAME inside the mounted disk image${NC}"
+    echo ""
+    echo "$ATTACH_OUTPUT"
+    echo ""
+    read -p "Press Enter to exit..."
+    exit 1
+fi
+
+echo -e "${GREEN}✅ Mounted: $MOUNT_PATH${NC}"
 echo ""
 
-open "$DMG_PATH"
+echo -e "${YELLOW}📦 Installing to Applications...${NC}"
 
-echo -e "${BLUE}🎉 Installation started!${NC}"
+if [ -e "$APP_DEST" ]; then
+    echo "Removing previous CertificateReminder installation..."
+    if ! rm -rf "$APP_DEST" 2>/dev/null; then
+        osascript -e 'do shell script "rm -rf /Applications/CertificateReminder.app" with administrator privileges'
+    fi
+fi
+
+if ! cp -R "$MOUNT_PATH/$APP_NAME" "$APP_DEST" 2>/dev/null; then
+    osascript -e 'do shell script "cp -R \"'"$MOUNT_PATH"'/'"$APP_NAME"'\" /Applications/" with administrator privileges'
+fi
+
+echo -e "${GREEN}✅ Installed: $APP_DEST${NC}"
 echo ""
-echo "After installing, you can delete this installer and the DMG."
+
+echo -e "${YELLOW}🔧 Clearing app quarantine attributes...${NC}"
+if xattr -cr "$APP_DEST" 2>/dev/null; then
+    echo -e "${GREEN}✅ App quarantine removed successfully${NC}"
+else
+    echo -e "${YELLOW}⚠️  Warning: Could not clear app quarantine automatically${NC}"
+fi
+echo ""
+
+echo -e "${YELLOW}🚀 Launching CertificateReminder...${NC}"
+open "$APP_DEST"
+
+sleep 2
+open "http://localhost:3030" >/dev/null 2>&1 || true
+
+echo -e "${BLUE}🎉 Installation complete!${NC}"
+echo ""
+echo "CertificateReminder v9.0.0 was installed in Applications."
+echo "If the browser did not open, go to: http://localhost:3030"
+echo ""
+echo "After installing, you can delete this folder."
 echo ""
 read -p "Press Enter to close this window..."
