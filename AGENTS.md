@@ -301,7 +301,7 @@ Tell users:
 4. Follow the macOS Installer screens.
 5. Wait for the browser to open `http://localhost:3030`.
 
-If macOS blocks the package, the package is probably unsigned or not notarized. The fallback user instruction is to right-click the `.pkg`, choose `Open`, then click `Open`, or use System Settings > Privacy & Security > Open Anyway. That is not the target flow for non-technical distribution.
+If macOS blocks the package, the package is probably unsigned or not notarized. If the dialog only offers `Done` and `Move to Bin`, tell the user to click `Done`, then go to System Settings > Privacy & Security > Security and click `Open Anyway` for the package. Apple says this override is available for about an hour after the blocked open attempt. Right-click `Open` can work on some macOS versions/policies, but it is not reliable for unsigned PKGs. This fallback is not the target flow for non-technical distribution.
 
 Do not tell non-technical users to run Terminal commands unless all graphical install options have failed.
 

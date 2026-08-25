@@ -289,7 +289,18 @@ xattr -cr CertificateReminder-8.0.0-macOS.dmg
 open CertificateReminder-8.0.0-macOS.dmg
 ```
 
-For v9 and later, the normal user should not need Terminal after the PKG is signed and notarized. Prefer the `.pkg` installer. If an unsigned PKG is blocked by macOS, the user may need to right-click the PKG, choose `Open`, then click `Open`, or use System Settings > Privacy & Security > Open Anyway. That is a fallback, not the desired non-technical release flow.
+For v9 and later, the normal user should not need Terminal after the PKG is signed and notarized. Prefer the `.pkg` installer.
+
+If an unsigned PKG is blocked by macOS with only `Done` and `Move to Bin`, the reliable fallback is:
+
+1. Click `Done`.
+2. Open `System Settings`.
+3. Go to `Privacy & Security`.
+4. Scroll to `Security`.
+5. Click `Open Anyway` for `CertificateReminder-<version>-macOS.pkg`.
+6. Confirm the next prompt.
+
+Apple documents that `Open Anyway` is available for about an hour after the blocked open attempt. Right-click `Open` can work on some macOS versions/policies, but it is not reliable for this package. Terminal quarantine removal is a last-resort workaround, not the desired non-technical release flow.
 
 If the app installs but `localhost:3030` does not open:
 
