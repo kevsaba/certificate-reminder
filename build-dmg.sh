@@ -8,6 +8,54 @@ APP_NAME="CertificateReminder"
 VERSION="9.0.0"
 DMG_NAME="${APP_NAME}-${VERSION}-macOS.dmg"
 PKG_NAME="${APP_NAME}-${VERSION}-macOS.pkg"
+DEVELOPER_ID_APPLICATION="${DEVELOPER_ID_APPLICATION:-}"
+DEVELOPER_ID_INSTALLER="${DEVELOPER_ID_INSTALLER:-}"
+NOTARYTOOL_PROFILE="${NOTARYTOOL_PROFILE:-}"
+
+sign_app_if_configured() {
+    local app_path="$1"
+
+    if [ -z "$DEVELOPER_ID_APPLICATION" ]; then
+        echo "⚠️  DEVELOPER_ID_APPLICATION not set; app will not be Developer ID signed"
+        return
+    fi
+
+    echo "🔏 Signing app with: $DEVELOPER_ID_APPLICATION"
+    codesign --force --deep --options runtime --timestamp --sign "$DEVELOPER_ID_APPLICATION" "$app_path"
+    codesign --verify --deep --strict --verbose=2 "$app_path"
+    echo "✅ App signed"
+}
+
+sign_pkg_if_configured() {
+    local pkg_path="$1"
+
+    if [ -z "$DEVELOPER_ID_INSTALLER" ]; then
+        echo "⚠️  DEVELOPER_ID_INSTALLER not set; PKG will not be Developer ID signed"
+        return
+    fi
+
+    local signed_pkg="${pkg_path%.pkg}-signed.pkg"
+    echo "🔏 Signing PKG with: $DEVELOPER_ID_INSTALLER"
+    productsign --sign "$DEVELOPER_ID_INSTALLER" "$pkg_path" "$signed_pkg"
+    mv "$signed_pkg" "$pkg_path"
+    pkgutil --check-signature "$pkg_path"
+    echo "✅ PKG signed"
+}
+
+notarize_if_configured() {
+    local artifact_path="$1"
+
+    if [ -z "$NOTARYTOOL_PROFILE" ]; then
+        echo "⚠️  NOTARYTOOL_PROFILE not set; skipping notarization for $artifact_path"
+        return
+    fi
+
+    echo "📮 Submitting for notarization: $artifact_path"
+    xcrun notarytool submit "$artifact_path" --keychain-profile "$NOTARYTOOL_PROFILE" --wait
+    xcrun stapler staple "$artifact_path"
+    spctl -a -vv -t install "$artifact_path" || true
+    echo "✅ Notarization stapled: $artifact_path"
+}
 
 echo "🔨 Building $APP_NAME v$VERSION..."
 echo ""
@@ -61,8 +109,13 @@ else
 fi
 echo ""
 
-# Step 5: Copy to distribution folder
-echo "Step 5: Preparing distribution..."
+# Step 5: Sign app if configured
+echo "Step 5: Signing app if configured..."
+sign_app_if_configured "$APP_BUNDLE"
+echo ""
+
+# Step 6: Copy to distribution folder
+echo "Step 6: Preparing distribution..."
 DIST_DIR="CertificateReminder-Distribution"
 rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
@@ -76,8 +129,8 @@ touch "$DIST_DIR/$APP_NAME.app"
 echo "✅ App bundle copied to distribution folder"
 echo ""
 
-# Step 6: Copy documentation and examples
-echo "Step 6: Adding documentation..."
+# Step 7: Copy documentation and examples
+echo "Step 7: Adding documentation..."
 cp DISTRIBUTION_README.md "$DIST_DIR/README.md" 2>/dev/null || echo "DISTRIBUTION_README.md not found, skipping"
 cp USER_GUIDE.md "$DIST_DIR/" 2>/dev/null || echo "USER_GUIDE.md not found, skipping"
 if [ -d "examples" ]; then
@@ -93,8 +146,8 @@ cp refresh-icon.command "$DIST_DIR/"
 echo "✅ Documentation added"
 echo ""
 
-# Step 7: Create DMG
-echo "Step 7: Creating DMG..."
+# Step 8: Create DMG
+echo "Step 8: Creating DMG..."
 DMG_PATH="artifacts/$DMG_NAME"
 PKG_PATH="artifacts/$PKG_NAME"
 rm -f "$DMG_PATH"
@@ -113,8 +166,8 @@ xattr -cr "$DMG_PATH"
 echo "✅ DMG created: $DMG_PATH"
 echo ""
 
-# Step 8: Create PKG installer
-echo "Step 8: Creating PKG installer..."
+# Step 9: Create PKG installer
+echo "Step 9: Creating PKG installer..."
 PKG_SCRIPTS_DIR="$(mktemp -d)"
 PKG_APP_STAGE_DIR="$(mktemp -d)"
 cp pkg-postinstall.sh "$PKG_SCRIPTS_DIR/postinstall"
@@ -133,8 +186,15 @@ xattr -cr "$PKG_PATH"
 echo "✅ PKG created: $PKG_PATH"
 echo ""
 
-# Step 9: Copy installer wrapper script to artifacts
-echo "Step 9: Adding installer wrapper script..."
+# Step 10: Sign and notarize release installers if configured
+echo "Step 10: Signing and notarizing installers if configured..."
+sign_pkg_if_configured "$PKG_PATH"
+notarize_if_configured "$PKG_PATH"
+notarize_if_configured "$DMG_PATH"
+echo ""
+
+# Step 11: Copy installer wrapper script to artifacts
+echo "Step 11: Adding installer wrapper script..."
 if [ -f "Install-CertificateReminder.command" ]; then
     cp Install-CertificateReminder.command artifacts/
     chmod +x artifacts/Install-CertificateReminder.command
@@ -192,3 +252,9 @@ echo "     - Install CertificateReminder.app"
 echo "     - Install-CertificateReminder.command"
 echo "  2. Tell users to double-click CertificateReminder-9.0.0-macOS.pkg"
 echo "  3. macOS Installer will install CertificateReminder and open localhost:3030"
+if [ -z "$DEVELOPER_ID_INSTALLER" ] || [ -z "$NOTARYTOOL_PROFILE" ]; then
+    echo ""
+    echo "⚠️  This build is NOT fully ready for non-technical internet distribution."
+    echo "   Set DEVELOPER_ID_APPLICATION, DEVELOPER_ID_INSTALLER, and NOTARYTOOL_PROFILE"
+    echo "   to produce a signed and notarized PKG that Gatekeeper can verify."
+fi

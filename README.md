@@ -11,6 +11,7 @@ The app runs locally on the user's Mac at `http://localhost:3030`. Users upload 
 - Release branch pattern: `release/<version>`, for example `release/9.0.0`
 - Public repo: `https://github.com/kevsaba/certificate-reminder`
 - Primary install artifact for non-technical users: `CertificateReminder-<version>-macOS.pkg`
+- Internet-distributed packages must be Developer ID signed and notarized, otherwise Gatekeeper can block them after download.
 
 ## What The App Does
 
@@ -86,6 +87,7 @@ Supported placeholders:
 - XLSX for Excel parsing.
 - AppleScript for Microsoft Outlook email sending and macOS permission checks.
 - `pkgbuild`, `hdiutil`, `xattr`, and `codesign` for macOS release packaging.
+- `productsign`, `xcrun notarytool`, and `xcrun stapler` for public macOS distribution.
 
 Use Bun, not npm, for normal development and release work.
 
@@ -162,13 +164,43 @@ bun test src/lib/__tests__/scheduler-consentimiento-renuncia.test.ts
 ./build-dmg.sh
 ```
 
-5. Create the Desktop handoff folder:
+5. For a non-technical user release, configure Apple signing and notarization.
+
+The build script supports these environment variables:
+
+```bash
+export DEVELOPER_ID_APPLICATION="Developer ID Application: <Name> (<Team ID>)"
+export DEVELOPER_ID_INSTALLER="Developer ID Installer: <Name> (<Team ID>)"
+export NOTARYTOOL_PROFILE="<stored-notarytool-profile>"
+```
+
+The Mac running the release must have valid Apple Developer ID certificates in Keychain. Check with:
+
+```bash
+security find-identity -v
+```
+
+Create the notary profile once with:
+
+```bash
+xcrun notarytool store-credentials "<stored-notarytool-profile>"
+```
+
+Then rebuild:
+
+```bash
+./build-dmg.sh
+```
+
+Without those credentials, the build script still creates artifacts for local testing, but the `.pkg` may be blocked on another Mac with a Gatekeeper message like "Apple could not verify this is free of malware".
+
+6. Create the Desktop handoff folder:
 
 ```text
 /Users/kevin.sabatino/Desktop/Send-To-Colleague-v<version>
 ```
 
-6. Copy release artifacts from `artifacts/` into that folder:
+7. Copy release artifacts from `artifacts/` into that folder:
 
 - `CertificateReminder-<version>-macOS.pkg`
 - `CertificateReminder-<version>-macOS.dmg`
@@ -177,7 +209,7 @@ bun test src/lib/__tests__/scheduler-consentimiento-renuncia.test.ts
 - `INSTALLATION-INSTRUCTIONS.txt`
 - `README-FOR-YOU.md`
 
-7. For non-technical users, the primary file is:
+8. For non-technical users, the primary file is:
 
 ```text
 CertificateReminder-<version>-macOS.pkg
@@ -185,7 +217,7 @@ CertificateReminder-<version>-macOS.pkg
 
 They should unzip the folder, double-click the `.pkg`, follow macOS Installer, and wait for the browser to open `http://localhost:3030`.
 
-8. Test the package on the local Mac:
+9. Test the package on the local Mac:
 
 - Remove any existing `/Applications/CertificateReminder.app`.
 - Confirm nothing is listening on `3030`.
@@ -202,7 +234,16 @@ plutil -p /Applications/CertificateReminder.app/Contents/Info.plist
 curl -i http://localhost:3030/api/categories
 ```
 
-9. Commit, push, and merge:
+10. Confirm Gatekeeper status for the distributable PKG:
+
+```bash
+pkgutil --check-signature artifacts/CertificateReminder-<version>-macOS.pkg
+spctl -a -vv -t install artifacts/CertificateReminder-<version>-macOS.pkg
+```
+
+For a release intended for non-technical users, `pkgutil` must show a Developer ID Installer signature and `spctl` must accept the package. If the package is unsigned, do not describe it as ready for frictionless sharing.
+
+11. Commit, push, and merge:
 
 ```bash
 git add <changed-files>
@@ -225,9 +266,19 @@ git push origin main
 - Creates `artifacts/Install CertificateReminder.app`.
 - Copies `artifacts/Install-CertificateReminder.command`.
 
-The PKG is the recommended installer because `.command` files can be interrupted by a user's shell startup behavior, such as an `oh-my-zsh` update prompt.
+The PKG is the recommended installer format because `.command` files can be interrupted by a user's shell startup behavior, such as an `oh-my-zsh` update prompt.
 
-The generated DMG and PKG are not notarized. The PKG postinstall script clears quarantine on the installed app, performs ad-hoc local signing, launches the app as the logged-in user, and opens `http://localhost:3030`.
+For local testing, the build script can create unsigned artifacts. For sharing with non-technical users, the PKG must be Developer ID signed and notarized. The PKG postinstall script clears quarantine on the installed app, performs ad-hoc local signing as a fallback, launches the app as the logged-in user, and opens `http://localhost:3030`.
+
+Signing/notarization environment variables:
+
+```bash
+DEVELOPER_ID_APPLICATION
+DEVELOPER_ID_INSTALLER
+NOTARYTOOL_PROFILE
+```
+
+If these are not set, `./build-dmg.sh` prints a warning that the build is not fully ready for non-technical internet distribution.
 
 ## Common macOS Issues
 
@@ -238,7 +289,7 @@ xattr -cr CertificateReminder-8.0.0-macOS.dmg
 open CertificateReminder-8.0.0-macOS.dmg
 ```
 
-For v9 and later, the normal user should not need Terminal. Prefer the `.pkg` installer. If the PKG is blocked by macOS, the user can right-click the PKG, choose `Open`, then click `Open`.
+For v9 and later, the normal user should not need Terminal after the PKG is signed and notarized. Prefer the `.pkg` installer. If an unsigned PKG is blocked by macOS, the user may need to right-click the PKG, choose `Open`, then click `Open`, or use System Settings > Privacy & Security > Open Anyway. That is a fallback, not the desired non-technical release flow.
 
 If the app installs but `localhost:3030` does not open:
 

@@ -15,6 +15,8 @@ These notes are the source of truth for AI agents working in this repo. Read thi
 - The v9 handoff folder is `/Users/kevin.sabatino/Desktop/Send-To-Colleague-v9.0.0`.
 - The recommended v9 installer is `CertificateReminder-9.0.0-macOS.pkg`.
 - The last validated v9 packaging commit was `6bc52c2`.
+- A later real-world test showed the unsigned v9 PKG can be blocked after being sent in a zip: "Apple could not verify ... is free of malware". This is expected Gatekeeper behavior for unsigned/not-notarized internet-distributed packages.
+- This Mac currently has no valid Apple signing identities according to `security find-identity -v`; a frictionless external release requires Apple Developer ID signing and notarization.
 
 ## Product Goal
 
@@ -39,6 +41,7 @@ The app should be installable on macOS and run locally, currently using `localho
 - Electrobun for macOS app bundling.
 - Microsoft Outlook integration through AppleScript.
 - Local app data stored under macOS Application Support.
+- Apple `productsign`, `notarytool`, and `stapler` are needed for a frictionless non-technical external macOS release.
 
 ## Build And Validation
 
@@ -64,6 +67,8 @@ For local manual app testing, use `bun run dev`. This builds the static UI and s
 - `CertificateReminder-Distribution/`
 
 Generated build outputs should stay out of Git. `.gitignore` should continue to exclude build artifacts, DMGs, app bundles, app data, examples, and private document/spreadsheet fixtures.
+
+For local testing, unsigned artifacts are acceptable. For sending to a non-technical colleague, unsigned artifacts are not enough because Gatekeeper can block them before any installer script runs.
 
 If generated build artifacts become root-owned after package testing, remove only generated outputs with administrator privileges:
 
@@ -152,6 +157,51 @@ The previous DMG plus `.command` flow is retained as a fallback, but `.command` 
 
 If the build script skips `examples/`, that is expected when private examples are intentionally absent from the public repo.
 
+### Signing And Notarization
+
+To produce a package that a non-technical colleague can double-click after receiving it through a zip/download, the release Mac needs:
+
+- A valid Apple Developer ID Application certificate.
+- A valid Apple Developer ID Installer certificate.
+- A configured `notarytool` keychain profile.
+
+Check available identities:
+
+```bash
+security find-identity -v
+```
+
+Expected identities look like:
+
+```text
+Developer ID Application: <Name> (<Team ID>)
+Developer ID Installer: <Name> (<Team ID>)
+```
+
+The build script supports:
+
+```bash
+export DEVELOPER_ID_APPLICATION="Developer ID Application: <Name> (<Team ID>)"
+export DEVELOPER_ID_INSTALLER="Developer ID Installer: <Name> (<Team ID>)"
+export NOTARYTOOL_PROFILE="<stored-notarytool-profile>"
+./build-dmg.sh
+```
+
+Store a notary profile once with:
+
+```bash
+xcrun notarytool store-credentials "<stored-notarytool-profile>"
+```
+
+After building a real external release, verify:
+
+```bash
+pkgutil --check-signature artifacts/CertificateReminder-<version>-macOS.pkg
+spctl -a -vv -t install artifacts/CertificateReminder-<version>-macOS.pkg
+```
+
+For non-technical release readiness, `pkgutil` must show a Developer ID Installer signature and `spctl` must accept the package. If either check fails, do not tell Kevin the artifact is ready for frictionless sharing.
+
 ### Release Checklist For A Future Agent
 
 Use this checklist for every new version.
@@ -181,13 +231,14 @@ bun test src/lib/__tests__/scheduler-consentimiento-renuncia.test.ts
 ./build-dmg.sh
 ```
 
-7. Create or refresh the Desktop handoff folder:
+7. If the target user is non-technical, configure signing and notarization before the final `./build-dmg.sh`.
+8. Create or refresh the Desktop handoff folder:
 
 ```text
 /Users/kevin.sabatino/Desktop/Send-To-Colleague-v<version>
 ```
 
-8. Copy fresh artifacts from `artifacts/`:
+9. Copy fresh artifacts from `artifacts/`:
 
 ```text
 CertificateReminder-<version>-macOS.pkg
@@ -196,14 +247,14 @@ Install CertificateReminder.app
 Install-CertificateReminder.command
 ```
 
-9. Add/update these human-facing files in the Desktop handoff folder:
+10. Add/update these human-facing files in the Desktop handoff folder:
 
 ```text
 INSTALLATION-INSTRUCTIONS.txt
 README-FOR-YOU.md
 ```
 
-10. Test the PKG from a clean state:
+11. Test the PKG from a clean state:
 
 ```bash
 lsof -nP -iTCP:3030 -sTCP:LISTEN
@@ -218,7 +269,7 @@ rm -rf /Applications/CertificateReminder.app
 
 If macOS denies deletion, use an administrator-approved delete. Do not delete the Desktop handoff folder.
 
-11. Install the PKG and verify:
+12. Install the PKG and verify:
 
 ```bash
 plutil -p /Applications/CertificateReminder.app/Contents/Info.plist
@@ -228,10 +279,17 @@ curl -i http://localhost:3030/api/categories
 
 The app version must match the release version, and `/api/categories` must return HTTP 200.
 
-12. Clean the local test install if Kevin wants a fresh manual test.
-13. Commit intentional source/docs/script changes only.
-14. Push the release branch.
-15. Merge into `main`, validate again, and push `main`.
+13. For external/non-technical sharing, verify Gatekeeper status:
+
+```bash
+pkgutil --check-signature artifacts/CertificateReminder-<version>-macOS.pkg
+spctl -a -vv -t install artifacts/CertificateReminder-<version>-macOS.pkg
+```
+
+14. Clean the local test install if Kevin wants a fresh manual test.
+15. Commit intentional source/docs/script changes only.
+16. Push the release branch.
+17. Merge into `main`, validate again, and push `main`.
 
 ### Non-Technical User Install Instruction
 
@@ -243,7 +301,7 @@ Tell users:
 4. Follow the macOS Installer screens.
 5. Wait for the browser to open `http://localhost:3030`.
 
-If macOS blocks the package, tell them to right-click the `.pkg`, choose `Open`, then click `Open`.
+If macOS blocks the package, the package is probably unsigned or not notarized. The fallback user instruction is to right-click the `.pkg`, choose `Open`, then click `Open`, or use System Settings > Privacy & Security > Open Anyway. That is not the target flow for non-technical distribution.
 
 Do not tell non-technical users to run Terminal commands unless all graphical install options have failed.
 
@@ -255,7 +313,7 @@ Do not tell non-technical users to run Terminal commands unless all graphical in
 - A PKG made with `pkgbuild --component` can report success without placing the app where expected because of PackageKit bundle behavior.
 - The current PKG avoids that by using `pkgbuild --nopayload` and a `postinstall` script that extracts an embedded `CertificateReminder.app.tar.gz` into `/Applications`.
 - The PKG postinstall clears quarantine, applies ad-hoc signing, launches as the logged-in console user, and opens `http://localhost:3030`.
-- DMG and PKG artifacts are not notarized.
+- Unsigned/not-notarized DMG and PKG artifacts can be blocked after being downloaded or extracted from a zip.
 - v8 relied on a manual quarantine workaround: `xattr -cr CertificateReminder-8.0.0-macOS.dmg && open CertificateReminder-8.0.0-macOS.dmg`.
 
 ## Security And Privacy
