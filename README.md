@@ -302,6 +302,12 @@ If an unsigned PKG is blocked by macOS with only `Done` and `Move to Bin`, the r
 
 Apple documents that `Open Anyway` is available for about an hour after the blocked open attempt. Right-click `Open` can work on some macOS versions/policies, but it is not reliable for this package. Terminal quarantine removal is a last-resort workaround, not the desired non-technical release flow.
 
+If `Privacy & Security` says the setting has been configured by a profile and no `Open Anyway` button appears, the Mac is managed by an organization. In that case the user may not be allowed to override Gatekeeper. The practical options are:
+
+- Build and send a Developer ID signed and notarized PKG.
+- Ask the organization's IT/admin team to approve or install the package.
+- Use a Terminal quarantine-removal workaround only if the user has permission and admin rights.
+
 If the app installs but `localhost:3030` does not open:
 
 - Check whether an old app is already running on port `3030`.

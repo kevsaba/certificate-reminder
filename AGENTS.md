@@ -17,6 +17,7 @@ These notes are the source of truth for AI agents working in this repo. Read thi
 - The last validated v9 packaging commit was `6bc52c2`.
 - A later real-world test showed the unsigned v9 PKG can be blocked after being sent in a zip: "Apple could not verify ... is free of malware". This is expected Gatekeeper behavior for unsigned/not-notarized internet-distributed packages.
 - This Mac currently has no valid Apple signing identities according to `security find-identity -v`; a frictionless external release requires Apple Developer ID signing and notarization.
+- If the receiving Mac shows `This setting has been configured by a profile` under Privacy & Security, it is managed by MDM/IT and may not show `Open Anyway`. That is not fixable by package scripts because Gatekeeper blocks execution before the package runs.
 
 ## Product Goal
 
@@ -302,6 +303,8 @@ Tell users:
 5. Wait for the browser to open `http://localhost:3030`.
 
 If macOS blocks the package, the package is probably unsigned or not notarized. If the dialog only offers `Done` and `Move to Bin`, tell the user to click `Done`, then go to System Settings > Privacy & Security > Security and click `Open Anyway` for the package. Apple says this override is available for about an hour after the blocked open attempt. Right-click `Open` can work on some macOS versions/policies, but it is not reliable for unsigned PKGs. This fallback is not the target flow for non-technical distribution.
+
+If Privacy & Security says `This setting has been configured by a profile` and no `Open Anyway` button appears, the Mac is managed by the organization. In that case, do not keep modifying installer scripts. The remaining options are Developer ID signing/notarization, IT/admin approval, or an approved admin Terminal workaround.
 
 Do not tell non-technical users to run Terminal commands unless all graphical install options have failed.
 
