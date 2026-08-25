@@ -260,6 +260,8 @@ git push origin main
 
 - Builds the Next.js static UI.
 - Builds the Electrobun macOS app.
+- Expands Electrobun's first-run `*.tar.zst` wrapper into the real runnable app bundle.
+- Ad-hoc signs unsigned local builds, or Developer ID signs when signing variables are configured.
 - Creates `CertificateReminder-Distribution/`.
 - Creates `artifacts/CertificateReminder-<version>-macOS.dmg`.
 - Creates `artifacts/CertificateReminder-<version>-macOS.pkg`.
@@ -279,6 +281,17 @@ NOTARYTOOL_PROFILE
 ```
 
 If these are not set, `./build-dmg.sh` prints a warning that the build is not fully ready for non-technical internet distribution.
+
+Before sending a handoff folder, verify the DMG/PKG do not contain Electrobun's self-extracting payload:
+
+```bash
+find CertificateReminder-Distribution/CertificateReminder.app/Contents/Resources -maxdepth 1 -name "*.tar.zst" -print
+rm -rf /tmp/cert-pkg-check
+pkgutil --expand-full artifacts/CertificateReminder-<version>-macOS.pkg /tmp/cert-pkg-check
+tar -tzf /tmp/cert-pkg-check/Scripts/CertificateReminder.app.tar.gz | grep "\\.tar\\.zst" || true
+```
+
+Both checks should print no `*.tar.zst` entries. If a release ships that wrapper, a managed Mac can fail on first launch with `Electrobun self-extractor... error: AccessDenied`.
 
 ## Common macOS Issues
 

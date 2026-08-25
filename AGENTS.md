@@ -67,6 +67,12 @@ For local manual app testing, use `bun run dev`. This builds the static UI and s
 - `artifacts/Install-CertificateReminder.command`
 - `CertificateReminder-Distribution/`
 
+The release app must be the expanded Electrobun app bundle, not the first-run self-extracting wrapper. After `./build-dmg.sh`, this command should print nothing:
+
+```bash
+find CertificateReminder-Distribution/CertificateReminder.app/Contents/Resources -maxdepth 1 -name "*.tar.zst" -print
+```
+
 Generated build outputs should stay out of Git. `.gitignore` should continue to exclude build artifacts, DMGs, app bundles, app data, examples, and private document/spreadsheet fixtures.
 
 For local testing, unsigned artifacts are acceptable. For sending to a non-technical colleague, unsigned artifacts are not enough because Gatekeeper can block them before any installer script runs.
@@ -280,6 +286,17 @@ curl -i http://localhost:3030/api/categories
 
 The app version must match the release version, and `/api/categories` must return HTTP 200.
 
+Also verify the deliverables do not contain Electrobun's self-extracting payload:
+
+```bash
+find CertificateReminder-Distribution/CertificateReminder.app/Contents/Resources -maxdepth 1 -name "*.tar.zst" -print
+rm -rf /tmp/cert-pkg-check
+pkgutil --expand-full artifacts/CertificateReminder-<version>-macOS.pkg /tmp/cert-pkg-check
+tar -tzf /tmp/cert-pkg-check/Scripts/CertificateReminder.app.tar.gz | grep "\\.tar\\.zst" || true
+```
+
+Both checks should print no `*.tar.zst` entries.
+
 13. For external/non-technical sharing, verify Gatekeeper status:
 
 ```bash
@@ -310,7 +327,8 @@ Do not tell non-technical users to run Terminal commands unless all graphical in
 
 ### Known Packaging Pitfalls From v9
 
-- Double-clicking `CertificateReminder.app` directly inside the mounted DMG can fail with `Electrobun self-extractor... error: AccessDenied`.
+- Shipping Electrobun's first-run `*.tar.zst` wrapper can fail with `Electrobun self-extractor... error: AccessDenied`, especially on managed Macs. `./build-dmg.sh` must expand that payload and package the runnable inner app.
+- Double-clicking `CertificateReminder.app` directly inside a mounted DMG is still not the preferred install flow; use the PKG.
 - The app must run from a writable installed location such as `/Applications`.
 - `.command` installer files can be interrupted before execution by shell startup prompts like `oh-my-zsh`.
 - A PKG made with `pkgbuild --component` can report success without placing the app where expected because of PackageKit bundle behavior.

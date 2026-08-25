@@ -16,11 +16,18 @@ sign_app_if_configured() {
     local app_path="$1"
 
     if [ -z "$DEVELOPER_ID_APPLICATION" ]; then
-        echo "⚠️  DEVELOPER_ID_APPLICATION not set; app will not be Developer ID signed"
+        echo "⚠️  DEVELOPER_ID_APPLICATION not set; ad-hoc signing app for local execution"
+        xattr -cr "$app_path" >/dev/null 2>&1 || true
+        xattr -d com.apple.FinderInfo "$app_path" >/dev/null 2>&1 || true
+        codesign --force --deep --sign - "$app_path"
+        codesign --verify --deep --verbose=2 "$app_path"
+        echo "✅ App ad-hoc signed"
         return
     fi
 
     echo "🔏 Signing app with: $DEVELOPER_ID_APPLICATION"
+    xattr -cr "$app_path" >/dev/null 2>&1 || true
+    xattr -d com.apple.FinderInfo "$app_path" >/dev/null 2>&1 || true
     codesign --force --deep --options runtime --timestamp --sign "$DEVELOPER_ID_APPLICATION" "$app_path"
     codesign --verify --deep --strict --verbose=2 "$app_path"
     echo "✅ App signed"
@@ -57,6 +64,51 @@ notarize_if_configured() {
     echo "✅ Notarization stapled: $artifact_path"
 }
 
+expand_electrobun_bundle_if_needed() {
+    local app_path="$1"
+    local payload
+    payload=$(find "$app_path/Contents/Resources" -maxdepth 1 -name "*.tar.zst" | head -1)
+
+    if [ -z "$payload" ]; then
+        echo "✅ App bundle is already expanded"
+        return
+    fi
+
+    local zstd_bin="node_modules/electrobun/dist-macos-arm64/zig-zstd"
+    if [ ! -x "$zstd_bin" ]; then
+        echo "❌ Error: Electrobun decompressor not found at $zstd_bin"
+        exit 1
+    fi
+
+    echo "📦 Expanding Electrobun self-extracting bundle..."
+    local temp_dir
+    temp_dir="$(mktemp -d)"
+    local payload_tar="$temp_dir/bundle.tar"
+    "$zstd_bin" decompress -i "$payload" -o "$payload_tar" --no-timing
+    tar -xf "$payload_tar" -C "$temp_dir"
+
+    local expanded_app
+    expanded_app=$(find "$temp_dir" -maxdepth 1 -name "*.app" -type d | head -1)
+    if [ -z "$expanded_app" ]; then
+        echo "❌ Error: Expanded Electrobun payload did not contain an app bundle"
+        rm -rf "$temp_dir"
+        exit 1
+    fi
+
+    local replacement="${app_path}.expanded"
+    rm -rf "$replacement"
+    ditto --norsrc --noextattr "$expanded_app" "$replacement"
+    rm -rf "$app_path"
+    mv "$replacement" "$app_path"
+    rm -rf "$temp_dir"
+
+    /usr/libexec/PlistBuddy -c "Set :CFBundleName $APP_NAME" "$app_path/Contents/Info.plist" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$app_path/Contents/Info.plist" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$app_path/Contents/Info.plist" 2>/dev/null || true
+
+    echo "✅ Electrobun bundle expanded for distribution"
+}
+
 echo "🔨 Building $APP_NAME v$VERSION..."
 echo ""
 
@@ -83,23 +135,25 @@ APP_FILENAME=$(basename "$APP_BUNDLE")
 echo "✅ App bundle built: $APP_FILENAME"
 echo ""
 
-# Step 3: Copy icon to app bundle
-echo "Step 3: Adding custom icon..."
+# Step 3: Expand Electrobun bundle
+echo "Step 3: Preparing runnable app bundle..."
+expand_electrobun_bundle_if_needed "$APP_BUNDLE"
+echo ""
+
+# Step 4: Copy icon to app bundle
+echo "Step 4: Adding custom icon..."
 if [ -f "CertificateReminder.icns" ]; then
     mkdir -p "$APP_BUNDLE/Contents/Resources"
     cp CertificateReminder.icns "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
-    # Touch the app bundle to force icon cache refresh
     touch "$APP_BUNDLE"
-    # Set the icon flag on the bundle
-    SetFile -a C "$APP_BUNDLE" 2>/dev/null || echo "SetFile not available, skipping"
-    echo "✅ Icon copied to app bundle and cache refresh triggered"
+    echo "✅ Icon copied to app bundle"
 else
     echo "⚠️  Warning: CertificateReminder.icns not found, using default icon"
 fi
 echo ""
 
-# Step 4: Remove quarantine attributes from app bundle
-echo "Step 4: Removing quarantine attributes..."
+# Step 5: Remove quarantine attributes from app bundle
+echo "Step 5: Removing quarantine attributes..."
 if [ -d "$APP_BUNDLE" ]; then
     xattr -cr "$APP_BUNDLE"
     echo "✅ Quarantine attributes removed from app bundle"
@@ -109,28 +163,25 @@ else
 fi
 echo ""
 
-# Step 5: Sign app if configured
-echo "Step 5: Signing app if configured..."
+# Step 6: Sign app if configured
+echo "Step 6: Signing app if configured..."
 sign_app_if_configured "$APP_BUNDLE"
 echo ""
 
-# Step 6: Copy to distribution folder
-echo "Step 6: Preparing distribution..."
+# Step 7: Copy to distribution folder
+echo "Step 7: Preparing distribution..."
 DIST_DIR="CertificateReminder-Distribution"
 rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
 
 # Copy and rename app bundle
 cp -R "$APP_BUNDLE" "$DIST_DIR/$APP_NAME.app"
-# Ensure the bundle bit is set (critical for icon display)
-SetFile -a B "$DIST_DIR/$APP_NAME.app" 2>/dev/null || true
-# Touch the bundle to force icon cache refresh
 touch "$DIST_DIR/$APP_NAME.app"
 echo "✅ App bundle copied to distribution folder"
 echo ""
 
-# Step 7: Copy documentation and examples
-echo "Step 7: Adding documentation..."
+# Step 8: Copy documentation and examples
+echo "Step 8: Adding documentation..."
 cp DISTRIBUTION_README.md "$DIST_DIR/README.md" 2>/dev/null || echo "DISTRIBUTION_README.md not found, skipping"
 cp USER_GUIDE.md "$DIST_DIR/" 2>/dev/null || echo "USER_GUIDE.md not found, skipping"
 if [ -d "examples" ]; then
@@ -146,8 +197,8 @@ cp refresh-icon.command "$DIST_DIR/"
 echo "✅ Documentation added"
 echo ""
 
-# Step 8: Create DMG
-echo "Step 8: Creating DMG..."
+# Step 9: Create DMG
+echo "Step 9: Creating DMG..."
 DMG_PATH="artifacts/$DMG_NAME"
 PKG_PATH="artifacts/$PKG_NAME"
 rm -f "$DMG_PATH"
@@ -166,8 +217,8 @@ xattr -cr "$DMG_PATH"
 echo "✅ DMG created: $DMG_PATH"
 echo ""
 
-# Step 9: Create PKG installer
-echo "Step 9: Creating PKG installer..."
+# Step 10: Create PKG installer
+echo "Step 10: Creating PKG installer..."
 PKG_SCRIPTS_DIR="$(mktemp -d)"
 PKG_APP_STAGE_DIR="$(mktemp -d)"
 cp pkg-postinstall.sh "$PKG_SCRIPTS_DIR/postinstall"
@@ -186,15 +237,15 @@ xattr -cr "$PKG_PATH"
 echo "✅ PKG created: $PKG_PATH"
 echo ""
 
-# Step 10: Sign and notarize release installers if configured
-echo "Step 10: Signing and notarizing installers if configured..."
+# Step 11: Sign and notarize release installers if configured
+echo "Step 11: Signing and notarizing installers if configured..."
 sign_pkg_if_configured "$PKG_PATH"
 notarize_if_configured "$PKG_PATH"
 notarize_if_configured "$DMG_PATH"
 echo ""
 
-# Step 11: Copy installer wrapper script to artifacts
-echo "Step 11: Adding installer wrapper script..."
+# Step 12: Copy installer wrapper script to artifacts
+echo "Step 12: Adding installer wrapper script..."
 if [ -f "Install-CertificateReminder.command" ]; then
     cp Install-CertificateReminder.command artifacts/
     chmod +x artifacts/Install-CertificateReminder.command
