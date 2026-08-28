@@ -7,6 +7,7 @@ import WelcomeModal from '@/components/WelcomeModal';
 import PermissionModal from '@/components/PermissionModal';
 import PermissionIndicator from '@/components/PermissionIndicator';
 import { extractBaseCategory } from '@/lib/expiration';
+import { countHiddenEntries } from '@/lib/categories';
 
 interface NotificationResult {
   emailsSent?: number;
@@ -37,6 +38,11 @@ export default function Home() {
       .filter(category => !hiddenSet.has(category))
       .sort();
   }, [entries, customCategories, hiddenCategories]);
+
+  const skippedHiddenCount = useMemo(
+    () => countHiddenEntries(entries, hiddenCategories),
+    [entries, hiddenCategories],
+  );
 
   // Permission UX state
   const [showWelcome, setShowWelcome] = useState(() => {
@@ -507,6 +513,12 @@ export default function Home() {
                     </button>
                   </div>
                 </div>
+
+                {skippedHiddenCount > 0 && (
+                  <div className="mt-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    ⚠ {skippedHiddenCount} {skippedHiddenCount === 1 ? 'entry is' : 'entries are'} in hidden categories and will be skipped. Re-add a category to include them.
+                  </div>
+                )}
 
                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                   {categoryOptions.map(category => (
