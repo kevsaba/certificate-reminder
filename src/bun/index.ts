@@ -156,9 +156,10 @@ server = serve({
       try {
         const existingData = loadAppData();
         const customCategories = existingData?.customCategories || [];
+        const hiddenCategories = existingData?.hiddenCategories || [];
 
         if (method === 'GET') {
-          return new Response(JSON.stringify({ customCategories }), {
+          return new Response(JSON.stringify({ customCategories, hiddenCategories }), {
             headers: { 'Content-Type': 'application/json' },
           });
         }
@@ -176,14 +177,20 @@ server = serve({
             });
           }
 
-          const updatedCategories = Array.from(new Set([...customCategories, category])).sort();
+          const updatedCustom = Array.from(new Set([...customCategories, category])).sort();
+          const updatedHidden = hiddenCategories.filter((value) => value !== category);
+
           saveAppData({
             entries: existingData?.entries || [],
             templates: existingData?.templates || [],
-            customCategories: updatedCategories,
+            customCategories: updatedCustom,
+            hiddenCategories: updatedHidden,
           });
 
-          return new Response(JSON.stringify({ customCategories: updatedCategories }), {
+          return new Response(JSON.stringify({
+            customCategories: updatedCustom,
+            hiddenCategories: updatedHidden,
+          }), {
             headers: { 'Content-Type': 'application/json' },
           });
         }
