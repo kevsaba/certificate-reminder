@@ -37,6 +37,7 @@ export interface CheckResult {
   remindersSent: number;
   emailsSent?: number;      // NEW
   emailsFailed?: number;    // NEW
+  skippedHidden?: number;   // NEW: entries filtered out because their category is hidden
   results: Array<{
     email: string;
     category: string;
@@ -57,4 +58,5 @@ export interface AppData {
   entries: CertificateEntry[];
   templates: Template[];
   customCategories?: string[];
+  hiddenCategories?: string[];   // NEW: normalized (uppercase), sorted, deduped
 }
