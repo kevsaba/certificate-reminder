@@ -13,6 +13,48 @@ The app runs locally on the user's Mac at `http://localhost:3030`. Users upload 
 - Primary install artifact for non-technical users: `CertificateReminder-<version>-macOS.pkg`
 - Internet-distributed packages must be Developer ID signed and notarized, otherwise Gatekeeper can block them after download.
 
+## Work In Progress — `feature/delete-categories`
+
+A feature branch that adds a delete-category affordance to the "Enabled Categories" grid, so the list stops growing forever. Deleted categories persist across app restarts and Excel re-uploads. Entries whose category has been deleted are skipped when sending emails, with an amber warning line showing how many are being skipped. To restore a deleted category, the user re-adds it via the existing "New category" input.
+
+**Spec:** `docs/superpowers/specs/2026-08-28-delete-categories-design.md`
+**Plan:** `docs/superpowers/plans/2026-08-28-delete-categories.md`
+
+### State of the branch
+
+Done and committed on `feature/delete-categories`:
+
+- Task 1 — `hiddenCategories?: string[]` on `AppData` and `skippedHidden?: number` on `CheckResult` (types).
+- Task 2 — `src/lib/categories.ts` helper with `visibleCategories` and `countHiddenEntries` + 9 unit tests.
+- Task 3 — `GET /api/categories` returns both `customCategories` and `hiddenCategories`; `POST /api/categories` un-hides on add.
+- Task 4 — `DELETE /api/categories` handler.
+- Task 5 — `/api/check` filters out entries in hidden categories and returns `skippedHidden` in the response.
+- Task 6 — `src/lib/__tests__/scheduler-hidden-categories.test.ts` end-to-end integration test.
+- Task 7 — Frontend loads `hiddenCategories`, filters `categoryOptions`, and filters Excel-uploaded categories against hidden.
+- Task 8 — Frontend `deleteCategory` handler + `×` button on each category chip with `window.confirm`.
+- Task 9 — Frontend amber warning banner above the category grid showing `N entries in hidden categories will be skipped`.
+
+Pending on `feature/delete-categories`:
+
+- **Task 10 — Manual end-to-end QA.** Requires Kevin (or Marta) to run the dev server and click through the flow. Steps are in the plan. Cannot be delegated to an agent.
+- **Task 11 — Docs update in `README.md` and `USER_GUIDE.md`.** Add short paragraphs describing the delete affordance from a user perspective.
+- **Task 12 — Full test sweep** (`bun run build`, `bun run test:missing-template`, `bun test src/lib/__tests__/*.test.ts`) and stale-version-reference check before merging.
+
+### How to continue
+
+To resume the work in a new session on this branch:
+
+```bash
+git switch feature/delete-categories
+git pull --ff-only origin feature/delete-categories
+bun install
+bun run dev
+```
+
+Then execute Task 10 manually per the plan doc, complete Tasks 11 and 12, and merge into `main` following the release process below. If bundling into a release, bump `package.json` etc. to the new version first — likely `9.1.0`.
+
+If you're continuing via an agent, point it at the plan file. Tasks 1–9 are marked complete via git commits with `feat(...)` and `test(...)` prefixes matching the plan step names. The subagent-driven-development workflow was used for the completed tasks; the pattern is documented in `docs/superpowers/plans/2026-08-28-delete-categories.md`.
+
 ## What The App Does
 
 - Parses Excel files containing employee certificate rows.
