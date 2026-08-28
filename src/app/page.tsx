@@ -272,6 +272,38 @@ export default function Home() {
     }
   };
 
+  const deleteCategory = async (category: string) => {
+    const confirmed = window.confirm(
+      `Delete category '${category}'? Entries in this category will be skipped when sending emails.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch('/api/categories', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || 'Failed to delete category');
+        return;
+      }
+
+      if (Array.isArray(data.customCategories)) {
+        setCustomCategories(data.customCategories);
+      }
+      if (Array.isArray(data.hiddenCategories)) {
+        setHiddenCategories(data.hiddenCategories);
+      }
+      setEnabledCategories(current => current.filter(enabled => enabled !== category));
+    } catch (error) {
+      console.error('Failed to delete category:', error);
+      alert('Failed to delete category');
+    }
+  };
+
   const shutdownApp = async () => {
     if (confirm('Are you sure you want to close the application?')) {
       try {
@@ -478,18 +510,29 @@ export default function Home() {
 
                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                   {categoryOptions.map(category => (
-                    <label
+                    <div
                       key={category}
                       className="flex items-center gap-2 rounded border border-gray-200 px-3 py-2 text-sm text-black bg-white"
                     >
-                      <input
-                        type="checkbox"
-                        checked={enabledCategories.includes(category)}
-                        onChange={() => toggleCategory(category)}
-                        className="h-4 w-4 rounded border-gray-300 text-green-600"
-                      />
-                      <span className="truncate">{category}</span>
-                    </label>
+                      <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={enabledCategories.includes(category)}
+                          onChange={() => toggleCategory(category)}
+                          className="h-4 w-4 rounded border-gray-300 text-green-600"
+                        />
+                        <span className="truncate">{category}</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => deleteCategory(category)}
+                        title={`Delete '${category}'`}
+                        aria-label={`Delete category ${category}`}
+                        className="flex-shrink-0 text-gray-400 hover:text-red-500 text-lg leading-none w-5 h-5 flex items-center justify-center rounded hover:bg-red-50"
+                      >
+                        ×
+                      </button>
+                    </div>
                   ))}
                 </div>
 
