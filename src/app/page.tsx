@@ -25,14 +25,18 @@ export default function Home() {
   const [lastResult, setLastResult] = useState<NotificationResult | null>(null);
   const [enabledCategories, setEnabledCategories] = useState<string[]>([]);
   const [customCategories, setCustomCategories] = useState<string[]>([]);
+  const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
   const [newCategory, setNewCategory] = useState('');
 
   const categoryOptions = useMemo(() => {
+    const hiddenSet = new Set(hiddenCategories);
     return Array.from(new Set([
       ...entries.map(entry => extractBaseCategory(entry.category).toUpperCase()),
       ...customCategories,
-    ])).sort();
-  }, [entries, customCategories]);
+    ]))
+      .filter(category => !hiddenSet.has(category))
+      .sort();
+  }, [entries, customCategories, hiddenCategories]);
 
   // Permission UX state
   const [showWelcome, setShowWelcome] = useState(() => {
@@ -61,7 +65,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const loadCustomCategories = async () => {
+    const loadCategories = async () => {
       try {
         const response = await fetch('/api/categories');
         if (response.ok) {
@@ -69,13 +73,16 @@ export default function Home() {
           if (Array.isArray(data.customCategories)) {
             setCustomCategories(data.customCategories);
           }
+          if (Array.isArray(data.hiddenCategories)) {
+            setHiddenCategories(data.hiddenCategories);
+          }
         }
       } catch (error) {
-        console.error('Failed to load custom categories:', error);
+        console.error('Failed to load categories:', error);
       }
     };
 
-    loadCustomCategories();
+    loadCategories();
   }, []);
 
   const handleExcelUpload = useCallback(async (file: File) => {
@@ -98,9 +105,12 @@ export default function Home() {
       }
 
       const uploadedEntries = data.entries as CertificateEntry[];
+      const hiddenSet = new Set(hiddenCategories);
       const uploadedCategories = Array.from(
         new Set(uploadedEntries.map(entry => extractBaseCategory(entry.category).toUpperCase()))
-      ).sort();
+      )
+        .filter(category => !hiddenSet.has(category))
+        .sort();
 
       setEntries(uploadedEntries);
       setFilename(file.name);
@@ -110,7 +120,7 @@ export default function Home() {
     } finally {
       setUploading(false);
     }
-  }, []);
+  }, [hiddenCategories]);
 
   const handleWordUpload = useCallback(async (file: File) => {
     setUploading(true);
