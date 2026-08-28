@@ -3,6 +3,7 @@ import { serve, spawn } from 'bun';
 import { parseExcel, validateExcel } from '../lib/excel';
 import { normalizeTemplateType, parseWordTemplates } from '../lib/word';
 import { checkExpirations } from '../lib/scheduler';
+import { extractBaseCategory } from '../lib/expiration';
 import { checkOutlookPermission, isOutlookRunning } from '../lib/permissions';
 import { join } from 'path';
 import { homedir } from 'os';
@@ -246,6 +247,14 @@ server = serve({
           });
         }
 
+        const hiddenCategories = appData.hiddenCategories || [];
+        const hiddenSet = new Set(hiddenCategories.map((value) => normalizeTemplateType(value)));
+        const visibleEntries = appData.entries.filter((entry) => {
+          const baseCategory = normalizeTemplateType(extractBaseCategory(entry.category));
+          return !hiddenSet.has(baseCategory);
+        });
+        const skippedHidden = appData.entries.length - visibleEntries.length;
+
         const templates = appData.templates || [];
         let enabledCategories: string[] | undefined;
 
@@ -262,7 +271,7 @@ server = serve({
           }
         }
 
-        const result = await checkExpirations(appData.entries, templates, {
+        const result = await checkExpirations(visibleEntries, templates, {
           channels: { email: true },
           enabledCategories,
         });
@@ -273,6 +282,7 @@ server = serve({
             ...result,
             emailsSent: (result as any).emailsSent || 0,
             emailsFailed: (result as any).emailsFailed || 0,
+            skippedHidden,
           },
         }), {
           headers: { 'Content-Type': 'application/json' },
