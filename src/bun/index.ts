@@ -194,6 +194,37 @@ server = serve({
             headers: { 'Content-Type': 'application/json' },
           });
         }
+
+        if (method === 'DELETE') {
+          const body = await req.json();
+          const category = typeof body.category === 'string'
+            ? normalizeTemplateType(body.category)
+            : '';
+
+          if (!category) {
+            return new Response(JSON.stringify({ error: 'Category name is required' }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+
+          const updatedCustom = customCategories.filter((value) => value !== category);
+          const updatedHidden = Array.from(new Set([...hiddenCategories, category])).sort();
+
+          saveAppData({
+            entries: existingData?.entries || [],
+            templates: existingData?.templates || [],
+            customCategories: updatedCustom,
+            hiddenCategories: updatedHidden,
+          });
+
+          return new Response(JSON.stringify({
+            customCategories: updatedCustom,
+            hiddenCategories: updatedHidden,
+          }), {
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
       } catch (error) {
         console.error('Category error:', error);
         return new Response(JSON.stringify({ error: 'Failed to update categories' }), {
